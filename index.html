@@ -1,0 +1,1898 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+<title>교당 일지 점검</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Noto Sans KR', 'Inter', sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+<div class="app-root" class="min-h-screen flex flex-col">
+  <!-- Top Header -->
+  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center text-slate-950 font-bold text-lg shadow-inner">
+          圓
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight">WonTIS 종합일지 분류·중요도 검수 시스템</h1>
+            <span class="hidden md:inline-block text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 font-medium">원티스 화면 순서: 중요도 - 대분류 - 소분류</span>
+          </div>
+          <p class="text-xs text-slate-400" id="headerDatasetInfo">현재 로드됨: 예시 일지(가상 데이터) · 총 14건 — 원티스에서 받은 XLS를 올리면 교체됨</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="hidden flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700/80 overflow-x-auto max-w-full">
+        <button id="tabBtn-dashboard" data-tab="dashboard" class="tab-btn px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition whitespace-nowrap bg-amber-500 text-slate-950 shadow">
+          일괄 점검 · 분류 제안
+        </button>
+        <button id="tabBtn-upload" data-tab="upload" class="tab-btn px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition whitespace-nowrap text-slate-300 hover:text-white hover:bg-slate-700/60">
+          엑셀 / PDF 파일 업로드
+        </button>
+        <button id="tabBtn-simulator" data-tab="simulator" class="tab-btn px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition whitespace-nowrap text-slate-300 hover:text-white hover:bg-slate-700/60">
+          단건 문맥 분석 · AI 작성기
+        </button>
+        <button id="tabBtn-guide" data-tab="guide" class="tab-btn px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition whitespace-nowrap text-slate-300 hover:text-white hover:bg-slate-700/60">
+          지침서 기준 · 문맥 설계 원리
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Toast Notification -->
+  <div id="toastBox" class="fixed bottom-5 right-5 z-50 hidden max-w-sm bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 flex items-center gap-3 text-sm">
+    <span id="toastIcon" class="text-amber-400 font-bold">✓</span>
+    <span id="toastMsg">처리가 완료되었습니다.</span>
+  </div>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 space-y-6">
+
+    <!-- TAB 1: DASHBOARD & ACTIONABLE CHANGE TABLE -->
+    <section id="tabPanel-dashboard" class="space-y-5">
+      <!-- Top Action & Summary Bar -->
+      <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-base sm:text-lg font-bold text-slate-900">종합일지 수정 제안 검수표 (수정 전 → 수정 후)</h2>
+            <span id="badgeActionCount" class="text-xs px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold">수정 제안 38건</span>
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">✔ 회의관리 자동등록 예외</span>
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">✔ 일괄묶음·육하원칙 지적 제외</span>
+          </div>
+          <p class="text-xs sm:text-sm text-slate-500 mt-1">
+            원티스에서 받은 종합일지(상세보기) XLS 파일을 올리면 자동으로 검수함. 고치지 않을 항목은 왼쪽 <strong>반영</strong> 체크를 해제하면 [보류]로 표시되며, 엑셀 수정본에 함께 나옴.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="btnUploadQuick" type="button" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition flex items-center gap-1.5">
+            <span>📤 원티스 일지 파일(.xls) 올리기</span>
+          </button>
+          <button id="btnExportExcel" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition flex items-center gap-1.5">
+            <span>📥 검수·수정본 엑셀(.xlsx) 다운로드</span>
+          </button>
+          <button id="btnApplyAllSuggestions" class="hidden px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition flex items-center gap-1.5">
+            <span id="btnApplyAllLabel">✨ 선택 항목만 일괄 반영</span>
+          </button>
+          <button id="btnResetOriginal" class="hidden px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-medium transition">
+            원본 복원
+          </button>
+        </div>
+        <div id="uploadStatusBox" class="hidden w-full p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs sm:text-sm"></div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+        <button data-QuickFilter="ACTION_ONLY" class="kpi-card text-left bg-white p-3.5 rounded-2xl border-2 border-indigo-500 shadow-sm hover:border-indigo-600 transition">
+          <div class="text-xs text-indigo-700 font-bold">수정 제안 전체</div>
+          <div class="text-2xl font-bold text-indigo-700 mt-1" id="kpiTotal">0</div>
+          <div class="text-[11px] text-indigo-500 mt-1" id="kpiScoreAvg">분류 변경 + 내용 오류</div>
+        </button>
+        <button data-QuickFilter="APPLY_ONLY" class="kpi-card text-left bg-white p-3.5 rounded-2xl border border-emerald-200 shadow-sm hover:border-emerald-400 transition">
+          <div class="text-xs text-emerald-700 font-bold">반영 대상 (체크됨)</div>
+          <div class="text-2xl font-bold text-emerald-700 mt-1" id="kpiActiveApply">0</div>
+          <div class="text-[11px] text-emerald-600 mt-1">일괄 반영에 포함</div>
+        </button>
+        <button data-QuickFilter="HOLD_ONLY" class="kpi-card text-left bg-white p-3.5 rounded-2xl border border-slate-300 shadow-sm hover:border-slate-500 transition">
+          <div class="text-xs text-slate-600 font-bold">수정 보류 (제외)</div>
+          <div class="text-2xl font-bold text-slate-600 mt-1" id="kpiHoldCount">0</div>
+          <div class="text-[11px] text-slate-400 mt-1">체크 해제된 항목</div>
+        </button>
+        <button data-QuickFilter="CAT_ISSUE" class="kpi-card text-left bg-white p-3.5 rounded-2xl border border-rose-200 shadow-sm hover:border-rose-400 transition">
+          <div class="text-xs text-rose-600 font-semibold">분류·중요도 변경</div>
+          <div class="text-2xl font-bold text-rose-600 mt-1" id="kpiCatIssue">0</div>
+          <div class="text-[11px] text-rose-500 mt-1">중요도-대분류-소분류</div>
+        </button>
+        <button data-QuickFilter="MISMATCH" class="kpi-card text-left bg-white p-3.5 rounded-2xl border border-amber-200 shadow-sm hover:border-amber-400 transition">
+          <div class="text-xs text-amber-700 font-semibold">내용오류·회차·중복</div>
+          <div class="text-2xl font-bold text-amber-600 mt-1" id="kpiMismatch">0</div>
+          <div class="text-[11px] text-amber-600 mt-1">제목≠내용·시간오타 등</div>
+        </button>
+        <button data-QuickFilter="ALL" class="kpi-card text-left bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-400 transition">
+          <div class="text-xs text-slate-600 font-semibold">전체 일지 (정상 포함)</div>
+          <div class="text-2xl font-bold text-slate-900 mt-1" id="kpiShort">14</div>
+          <div class="text-[11px] text-slate-400 mt-1">원장 전체 조회</div>
+        </button>
+      </div>
+
+      <!-- Filter & Batch Selection Controls -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2 flex-1 min-w-[240px]">
+            <select id="filterIssueType" class="px-3 py-1.5 rounded-xl border border-indigo-300 text-xs sm:text-sm bg-indigo-50/60 text-indigo-950 font-bold">
+              <option value="ACTION_ONLY" selected>📌 수정 제안 건만 보기 (분류 변경 + 내용 오류)</option>
+              <option value="APPLY_ONLY">✅ 반영 대상 항목만 보기</option>
+              <option value="HOLD_ONLY">⏸️ 보류(제외) 항목만 보기</option>
+              <option value="CAT_ISSUE">🎯 분류·중요도 변경 건만</option>
+              <option value="MISMATCH">✏️ 내용 오기재·회차·중복 건만</option>
+              <option value="UNAPPROVED">🔏 승인 필요(미승인) 일지만</option>
+              <option value="EXEMPT">🛡️ 예외 처리된 일지 (회의관리·일괄묶음)</option>
+              <option value="ALL">📋 전체 일지 모두 보기</option>
+            </select>
+            <input type="text" id="searchInput" placeholder="순서, 일자, 제목, 작성자, 수정내용 검색..." class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-60" />
+            <select id="filterAuthor" class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white">
+              <option value="ALL">전체 작성자</option>
+            </select>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="groupHoldSelect" class="max-w-[320px] px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs" title="같은 분류의 제안을 한꺼번에 보류하거나 해제함">
+              <option value="">분류별 일괄 보류 선택...</option>
+            </select>
+            <button id="btnGroupHold" type="button" class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition" disabled>
+              선택 분류 전체 보류
+            </button>
+            <button id="btnToggleSelectAll" class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition">
+              전체 선택 / 보류 토글
+            </button>
+            <div class="text-xs text-slate-700 font-bold" id="filteredCountText">
+              표시 중: 0줄
+            </div>
+          </div>
+        </div>
+
+        <!-- NEW CLEAN 2-COLUMN TABLE WITH HOLD CHECKBOX -->
+        <div class="grid grid-cols-1 lg:grid-cols-12">
+          <!-- Main Table (8 cols) -->
+          <div class="lg:col-span-12 max-h-[760px] overflow-y-auto custom-scrollbar">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-slate-100 text-slate-700 text-xs font-bold sticky top-0 z-10 border-b border-slate-200">
+                <tr>
+                  <th class="py-3 px-2 w-12 text-center" title="체크 시 반영, 해제 시 보류">
+                    반영
+                  </th>
+                  <th class="py-3 px-2 w-12 text-center">순서</th>
+                  <th class="py-3 px-2.5 w-24">일자/작성자</th>
+                  <th class="py-3 px-3 w-40">일지 제목</th>
+                  <th class="py-3 px-3 w-40">수정 전 (현재 상태)</th>
+                  <th class="py-3 px-3">수정 후 (제안 내용) · 근거</th>
+                  <th class="py-3 px-2 w-16 text-center">승인</th>
+                </tr>
+              </thead>
+              <tbody id="logTableBody" class="divide-y divide-slate-200 text-xs sm:text-sm">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Right Detail Inspector (4 cols) -->
+          <div class="hidden" id="detailInspectorPanel">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary Charts & Guidelines at Bottom -->
+      <div class="hidden grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs sm:text-sm font-bold text-slate-800">대분류별 수정 전 vs 수정 후 비교</h3>
+            <span class="text-[11px] text-slate-400">건수 기준</span>
+          </div>
+          <div class="relative h-48">
+            <canvas id="chartCategoryCompare"></canvas>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs sm:text-sm font-bold text-slate-800">검수 결과 상태 분포</h3>
+            <span class="text-[11px] text-slate-400">보류 현황 포함</span>
+          </div>
+          <div class="relative h-48">
+            <canvas id="chartIssueBreakdown"></canvas>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <h3 class="text-xs sm:text-sm font-bold text-slate-800">💡 사용자 피드백 반영 완료</h3>
+            <ul class="mt-2 space-y-1.5 text-xs text-slate-600">
+              <li class="p-1 rounded bg-slate-50">• <strong>사유 분리</strong>: 엑셀과 표에서는 제안 이유를 빼고 변경값만 콕 찝어 표시 (사유는 우측 패널에서 확인)</li>
+              <li class="p-1 rounded bg-slate-50">• <strong>줄바꿈 최적화</strong>: 긴 문장 대신 짧은 여러 줄로 분리하여 한눈에 파악</li>
+              <li class="p-1 rounded bg-slate-50">• <strong>보류 체크박스</strong>: 각 항목별로 체크 해제 시 [보류] 처리되며 일괄 반영 대상에서 즉시 제외</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: FILE UPLOAD -->
+    <section id="tabPanel-upload" class="hidden space-y-5">
+      <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-slate-900">원티스 종합일지 출력물 일괄 업로드</h2>
+            <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+              원티스에서 내려받은 <strong>엑셀 파일(.xls, .xlsx, .csv)</strong> 또는 <strong>PDF 출력물(.pdf)</strong>을 업로드하면 자동으로 파싱하여 수정 제안표를 생성합니다.
+            </p>
+          </div>
+          <button id="btnReloadDefaultFile" class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs sm:text-sm font-semibold shadow-sm transition">
+            📂 예시 일지(가상) 다시 불러오기
+          </button>
+        </div>
+
+        <div id="fileDropZone" class="border-2 border-dashed border-indigo-300 hover:border-indigo-500 bg-indigo-50/40 hover:bg-indigo-50/80 transition rounded-2xl p-8 text-center cursor-pointer">
+          <input type="file" id="fileInputElem" accept=".xls,.xlsx,.csv,.pdf" class="hidden" />
+          <div class="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center mx-auto text-2xl font-bold">
+            📄
+          </div>
+          <p class="text-sm sm:text-base font-bold text-slate-800 mt-3">
+            클릭하여 파일을 선택하거나 이 영역으로 드래그 앤 드롭하세요
+          </p>
+          <p class="text-xs text-slate-500 mt-1">
+            지원 형식: 원티스 리포트 디자이너 엑셀 출력물(.xls, .xlsx), CSV(.csv), 원티스 인쇄용 PDF(.pdf)
+          </p>
+        </div>
+
+        <div id="uploadStatusBoxTab" class="hidden p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs sm:text-sm"></div>
+      </div>
+    </section>
+
+    <!-- TAB 3: SINGLE ENTRY SIMULATOR -->
+    <section id="tabPanel-simulator" class="hidden space-y-5">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div class="lg:col-span-5 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold text-slate-900">단건 분류·내용 테스트</h2>
+            <select id="simSampleSelector" class="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-slate-50">
+              <option value="">샘플 사례 불러오기...</option>
+              <option value="sample1">사례1: 아침공사 (중요도·분류 변경)</option>
+              <option value="sample2">사례2: 8월 회계 마감 업무 (기타→재무행정)</option>
+              <option value="sample3">사례3: 교당 토지 매매 계약 (연혁 상향)</option>
+              <option value="sample4">사례4: 출가단회 문화기행 (주관→참석)</option>
+              <option value="sample5">사례5: 봉공회 반찬나눔 밑작업 (방문→단체)</option>
+              <option value="sample6">사례6: 아침좌선 (제목≠내용 오기재)</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">일자 (원기)</label>
+              <input type="text" id="simDate" value="111.10.13" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs sm:text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">시간</label>
+              <input type="text" id="simTime" value="PM 14:00-PM 15:00" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs sm:text-sm" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">현재 중요도</label>
+              <select id="simImportance" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs sm:text-sm">
+                <option value="연혁">연혁</option>
+                <option value="사업보고">사업보고</option>
+                <option value="주요일반사항" selected>주요일반사항</option>
+                <option value="기타사항">기타사항</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">현재 분류 (소분류-대분류)</label>
+              <input type="text" id="simCategory" value="토지관리-교산" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs sm:text-sm" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">제목</label>
+            <input type="text" id="simTitle" value="교당 부속 토지 매매 계약" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs sm:text-sm" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">장소</label>
+              <input type="text" id="simPlace" value="사무실" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs sm:text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">참석수 (남 / 여 / 계)</label>
+              <div class="grid grid-cols-3 gap-1.5">
+                <input type="number" id="simMale" value="0" min="0" class="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-center" />
+                <input type="number" id="simFemale" value="0" min="0" class="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-center" />
+                <input type="number" id="simTotal" value="0" min="0" class="px-2 py-1.5 rounded-lg border border-slate-300 text-xs text-center" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">내용</label>
+            <textarea id="simContent" rows="4" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs sm:text-sm leading-relaxed">교당 부속 토지 매매 계약 체결 (가상 예시)</textarea>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 pt-1">
+            <button id="btnRunSim" class="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition">
+              🔍 문맥 분석 및 분류 추천 실행
+            </button>
+            <button id="btnAddSimToList" class="py-2.5 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-medium transition">
+              + 현재 목록에 추가
+            </button>
+          </div>
+        </div>
+
+        <div class="lg:col-span-7 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4" id="simResultContainer">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: GUIDELINE REFERENCE -->
+    <section id="tabPanel-guide" class="hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
+          <h3 class="text-sm sm:text-base font-bold text-slate-900">📌 종합일지 『중요도』 선택 기준 (지침서 38~39p, 41p, 82p)</h3>
+          <table class="w-full text-xs text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 border-b border-slate-200">
+                <th class="p-2.5 w-28">중요도</th>
+                <th class="p-2.5">지침서 정의 및 해당 사안</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-slate-600">
+              <tr>
+                <td class="p-2.5 font-bold text-indigo-700">1. 연혁</td>
+                <td class="p-2.5">신축·봉불·이안, 전무출신 이·부임, 교도회장·부회장 임명, 토지매입·매각·대토(교환) 등 교산거래, 제1회 창립/행사, 특별 역사적 의식 주관</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 font-bold text-emerald-700">2. 사업보고</td>
+                <td class="p-2.5">제2회·제3회 등 연례 반복 주요 행사 주관, 시설보수·개축·지붕방수공사·차량구입 등 주요 교산 변경</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 font-bold text-slate-800">3. 주요일반사항</td>
+                <td class="p-2.5">일상에서 반복되는 일 중 참고·기록 가치가 있는 일반 회의, 행정업무, 방문/순교, 외부 행사·회의·의식 참석</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 font-bold text-slate-500">4. 기타사항</td>
+                <td class="p-2.5">생활 속에서 의례적·반복적으로 일어나는 일과 (예: <strong>아침좌선, 저녁염불, 아침공사</strong> 등)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
+          <h3 class="text-sm sm:text-base font-bold text-slate-900">📌 종합일지 『대분류 - 소분류』 체계 (지침서 39~40p)</h3>
+          <div class="overflow-x-auto max-h-96 custom-scrollbar">
+            <table class="w-full text-xs text-left border-collapse">
+              <thead class="sticky top-0 bg-slate-100 text-slate-700 border-b border-slate-200">
+                <tr>
+                  <th class="p-2.5 w-28">대분류</th>
+                  <th class="p-2.5">소분류 및 핵심 규칙</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 text-slate-600">
+                <tr><td class="p-2 font-bold">단체</td><td class="p-2">봉공회, 여성회, 청운회, 청년회, 천심회, 원대연, 수덕회, 정화단 등 단체 활동</td></tr>
+                <tr><td class="p-2 font-bold">의식</td><td class="p-2">좌선, 기도, 염불, 입교식, 결혼식, 상장, 제사, 재, 봉불식, 법호수여식 등</td></tr>
+                <tr><td class="p-2 font-bold">행사</td><td class="p-2">교단, 일반, 청년, 학생, 어린이, 전무출신, 전체, 기타 대상 행사 주관</td></tr>
+                <tr><td class="p-2 font-bold">참석</td><td class="p-2">훈련참석, 행사참석, 교육참석, 회의참석, 법회참석, 출가교화단참석, 의식참석 (주관하지 않은 사안 참석)</td></tr>
+                <tr><td class="p-2 font-bold">교육</td><td class="p-2">전무출신, 예비전무출신, 교도, 기타 대상 교육 주관</td></tr>
+                <tr><td class="p-2 font-bold">회의</td><td class="p-2">수위단회, 교구회의, 지구회의, 교당교의회, 교화협의회, 기타회의 (※ 출가교화단회는 수위단회 사무처만 주관 등록, 교구·교당은 참석 처리 / 회의관리 자동등록 건은 검수 예외)</td></tr>
+                <tr><td class="p-2 font-bold">방문(접견)</td><td class="p-2">전무출신, 교도, 업체 등이 찾아와서 맞이한 활동</td></tr>
+                <tr><td class="p-2 font-bold">순방 / 순교</td><td class="p-2">순방(일반·대외 목적 직접 방문) / 순교(교화 목적 교도·단체 방문)</td></tr>
+                <tr><td class="p-2 font-bold">교산</td><td class="p-2">토지관리, 건물관리, 차량, 비품 등의 매입·매각·계약·수리·보수</td></tr>
+                <tr><td class="p-2 font-bold">행정 (16종)</td><td class="p-2">기획행정, 전산(민원)행정, 교화행정, 훈련행정, 인사행정, 교육행정, 재무행정, 법인행정, 교산관리행정, 공익복지행정, 의료행정, 국제행정, 문화행정, 감찰행정, 감사행정, 일반행정</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    const INITIAL_ENTRIES = [{"seq": 1, "date": "111.09.01", "time": "AM 09:00-AM 10:00", "importance": "주요일반사항", "category": "기타회의-회의", "title": "아침공사", "place": "사무실", "male": 0, "female": 0, "total": 0, "amount": 0, "author": "담당교무", "approval": "승인", "content": "아침공사"}, {"seq": 2, "date": "111.09.01", "time": "PM 14:00-PM 17:00", "importance": "주요일반사항", "category": "기타-기타", "title": "8월 회계 마감 업무", "place": "사무실", "male": 1, "female": 0, "total": 1, "amount": 0, "author": "담당교무", "approval": "승인", "content": "8월 회계 마감 업무"}, {"seq": 3, "date": "111.09.03", "time": "AM 05:00-AM 06:00", "importance": "기타사항", "category": "좌선-의식", "title": "아침좌선", "place": "소법당", "male": 1, "female": 0, "total": 1, "amount": 0, "author": "담당교무", "approval": "승인", "content": "아침좌선"}, {"seq": 4, "date": "111.09.07", "time": "AM 10:30-AM 11:30", "importance": "주요일반사항", "category": "정례법회-법회-교도활동", "title": "일요 정례법회", "place": "대각전", "male": 5, "female": 12, "total": 17, "amount": 0, "author": "담당교무", "approval": "승인", "content": "일요 정례법회\n설교: 담당교무"}, {"seq": 5, "date": "111.09.07", "time": "AM 05:00-AM 06:00", "importance": "기타사항", "category": "좌선-의식", "title": "아침좌선", "place": "소법당", "male": 1, "female": 0, "total": 1, "amount": 0, "author": "담당교무", "approval": "승인", "content": "○○지구 출가단회 참석"}, {"seq": 6, "date": "111.09.14", "time": "PM 14:00-PM 16:00", "importance": "주요일반사항", "category": "교도방문-방문(접견)", "title": "봉공회 반찬나눔 밑작업", "place": "봉공회실", "male": 0, "female": 2, "total": 2, "amount": 0, "author": "담당교무", "approval": "승인", "content": "봉공회 반찬나눔 밑작업"}, {"seq": 7, "date": "111.09.20", "time": "AM 10:00-PM 15:00", "importance": "주요일반사항", "category": "행사참석-참석", "title": "○○교당 봉불식 참석", "place": "○○교당", "male": 1, "female": 0, "total": 1, "amount": 0, "author": "담당교무", "approval": "승인", "content": "○○교당 봉불식 참석"}, {"seq": 8, "date": "111.10.02", "time": "PM 14:00-PM 15:00", "importance": "주요일반사항", "category": "토지관리-교산", "title": "교당 부속 토지 매매 계약", "place": "사무실", "male": 0, "female": 0, "total": 0, "amount": 0, "author": "담당교무", "approval": "승인", "content": "교당 부속 토지 매매 계약 체결 (가상 예시)"}, {"seq": 9, "date": "111.10.05", "time": "PM 19:30-PM 21:00", "importance": "주요일반사항", "category": "기타-기타", "title": "청년회 정기모임", "place": "청년방", "male": 3, "female": 4, "total": 7, "amount": 0, "author": "담당교무", "approval": "승인", "content": "청년회 정기모임"}, {"seq": 10, "date": "111.10.13", "time": "AM 09:00-PM 23:00", "importance": "주요일반사항", "category": "출가교화단회-회의", "title": "출가단회 문화기행", "place": "○○", "male": 0, "female": 0, "total": 0, "amount": 0, "author": "담당교무", "approval": "승인", "content": "출가단회 문화기행 참석"}, {"seq": 11, "date": "111.10.18", "time": "PM 14:00-PM 16:00", "importance": "주요일반사항", "category": "건물관리-교산", "title": "교당 지붕 방수 공사 시작", "place": "교당", "male": 0, "female": 0, "total": 0, "amount": 0, "author": "담당교무", "approval": "미승인", "content": "교당 지붕 방수 공사 시작"}, {"seq": 12, "date": "111.10.25", "time": "AM 10:00-PM 16:00", "importance": "사업보고", "category": "훈련-훈련", "title": "교당 교도 정기훈련", "place": "대각전", "male": 6, "female": 15, "total": 21, "amount": 0, "author": "담당교무", "approval": "승인", "content": "교당 교도 정기훈련"}, {"seq": 13, "date": "111.11.01", "time": "PM 14:00-PM 15:00", "importance": "주요일반사항", "category": "기타-기타", "title": "교구 회의 참석", "place": "교구청", "male": 1, "female": 0, "total": 1, "amount": 0, "author": "담당교무", "approval": "승인", "content": "교구 교무회의 참석"}, {"seq": 14, "date": "111.11.04", "time": "AM 10:00-AM 12:00", "importance": "주요일반사항", "category": "기타-기타", "title": "교당 업무", "place": "사무실", "male": 1, "female": 0, "total": 1, "amount": 0, "author": "담당교무", "approval": "승인", "content": "교당 업무"}];
+
+    let rawEntries = JSON.parse(JSON.stringify(INITIAL_ENTRIES));
+    let analyzedEntries = [];
+    let selectedSeq = 1;
+    let currentDatasetTitle = "예시 일지(가상 데이터)";
+    let chartCatInstance = null;
+    let chartIssueInstance = null;
+
+    // In-memory hold status keyed by unique item id (`${seq}_${kind}`)
+    // true = on hold (보류, unchecked), false/undefined = active (반영, checked)
+    let holdMap = {};
+
+    // 적용 완료 기록: 일괄/개별 적용으로 화면 속 값이 바뀌어도 수정제안표에 남기기 위한 기록
+    let appliedLog = [];
+    function recordApplied(e, chg) {
+      if (!e || !chg) return;
+      const key = `${e.seq}_${chg.kind}`;
+      appliedLog = appliedLog.filter(x => x.key !== key);
+      appliedLog.push({
+        key, seq: e.seq, date: e.date, author: e.author, title: e.title, place: e.place || "",
+        kind: chg.kind, typeLabel: chg.typeLabel, beforeText: chg.beforeText, afterText: chg.afterText,
+        isUnapproved: Boolean(e.isUnapproved)
+      });
+    }
+
+    function showToast(msg, icon = "✓") {
+      const box = document.getElementById("toastBox");
+      document.getElementById("toastMsg").textContent = msg;
+      document.getElementById("toastIcon").textContent = icon;
+      box.classList.remove("hidden");
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        box.classList.add("hidden");
+      }, 3000);
+    }
+
+    function formatImpMainSub(imp, catStr) {
+      const parts = String(catStr || "").split("-").map(s => s.trim()).filter(Boolean);
+      let main = "기타";
+      let sub = "기타";
+      if (parts.length >= 2) {
+        sub = parts[0];
+        main = parts[1];
+      } else if (parts.length === 1) {
+        main = parts[0];
+        sub = parts[0];
+      }
+      return `${imp || "주요일반사항"} - ${main} - ${sub}`;
+    }
+
+    // =========================================================================
+    // FOCUSED CONTEXT ENGINE: Short, multi-line, reason-free output strings
+    // =========================================================================
+    function analyzeAllEntries(entries) {
+      const sigFirstSeen = {};
+
+      return entries.map((e) => {
+        const title = (e.title || "").trim();
+        const content = (e.content || "").trim();
+        const place = (e.place || "").trim();
+        const cat = (e.category || "").trim();
+        const imp = (e.importance || "").trim();
+        const combined = `${title} ${content}`;
+        const isUnapproved = (e.approval === "미승인");
+
+        const isAutoMeeting = cat.includes("회의관리");
+        const isBundledWork = /교구\s*업무|일과\s*정리/.test(title);
+
+        let recImp = imp;
+        let recCat = cat;
+        let catReason = "";
+
+        const changes = [];
+
+        if (!isAutoMeeting && !isBundledWork) {
+          // 1. Classification & Importance
+          if (/^(아침\s*좌선|저녁\s*염불|좌선|염불)$/.test(title)) {
+            recImp = "기타사항";
+            recCat = title.includes("염불") ? "염불-의식" : "좌선-의식";
+            catReason = "일상 반복 좌선·염불은 지침서(41p, 82p)에 따라 '기타사항'으로 설정";
+          } else if (/^(아침\s*공사|석회|조석회|공사)$/.test(title)) {
+            recImp = "기타사항";
+            recCat = "일반행정-행정";
+            catReason = "일상 아침공사는 지침서(41p, 82p)에 따라 '기타사항'(일반행정)으로 설정";
+          } else if (cat === "기타-기타") {
+            if (/회계\s*마감|결산|예산|전표|재무/.test(combined)) {
+              recCat = "재무행정-행정";
+              catReason = "회계·결산 업무는 지침서(40p)에 따라 '행정 - 재무행정'으로 분류";
+            } else if (/훈련.*(강의안|준비|간식|자료|접수|방편성)/.test(combined)) {
+              recCat = "훈련행정-행정";
+              catReason = "훈련 준비·강의안 작성은 지침서(40p)에 따라 '행정 - 훈련행정'으로 분류";
+            } else if (/설교안\s*작성|법위\s*사정\s*준비|교정\s*지도\s*준비|대법회\s*준비/.test(combined)) {
+              recCat = "교화행정-행정";
+              catReason = "설교안 작성 및 법위사정 준비는 지침서(40p)에 따라 '행정 - 교화행정'으로 분류";
+            } else if (/(상임위원회|확대회의|항단회|교의회|연찬회|주요\s*행사).*(준비|자료집|자료\s*제작|사진\s*송부|숙소\s*예약|정리)/.test(combined)) {
+              recCat = "기획행정-행정";
+              catReason = "회의·행사 기획 및 자료집 제작·숙소 예약은 지침서(40p)에 따라 '행정 - 기획행정'으로 분류";
+            } else if (/봉공회|청운회|여성회|청년회/.test(combined) && !/설교안/.test(combined)) {
+              const grp = combined.match(/(봉공회|청운회|여성회|청년회)/)[1];
+              recCat = `${grp}-단체`;
+              catReason = `${grp} 주관 활동은 지침서(39p)에 따라 '단체 - ${grp}'로 분류`;
+            } else if (/대관/.test(combined)) {
+              recCat = "일반행정-행정";
+              catReason = "시설 대관 업무는 지침서(40p)에 따라 '행정 - 일반행정'으로 분류";
+            } else if (/결혼식\s*참석|종재식\s*참석|열반.*참석|봉불식\s*참석/.test(combined)) {
+              recImp = "주요일반사항";
+              recCat = "의식참석-참석";
+              catReason = "결혼식 등 의식 참석은 지침서(39p)에 따라 '참석 - 의식참석'으로 분류";
+            }
+          } else if (cat === "출가교화단회-회의") {
+            recCat = "출가교화단참석-참석";
+            catReason = "출가교화단회는 수위단회 사무처만 주관 등록하며 교구·교당은 '참석 - 출가교화단참석'으로 등록 (지침서 40p)";
+          } else if (cat === "수위단회의-회의" && /참석/.test(title)) {
+            recCat = "회의참석-참석";
+            catReason = "총부 수위단회(정단회) 참석은 주관 회의가 아니므로 '참석 - 회의참석'으로 등록 (지침서 39p)";
+          } else if (cat === "기타회의-회의" && /참석/.test(title) && !/교구|사무실/.test(place)) {
+            recImp = "주요일반사항";
+            recCat = "회의참석-참석";
+            catReason = `외부 기관 위원회 참석은 '참석 - 회의참석'으로 등록 (지침서 39p)`;
+          } else if (cat === "교도방문-방문(접견)" && /봉공회.*(밑작업|반찬|나눔|봉사)/.test(combined)) {
+            recCat = "봉공회-단체";
+            catReason = "방문객 접견이 아닌 봉공회실 반찬나눔 활동이므로 '단체 - 봉공회'로 분류 (지침서 39p)";
+          } else if (cat === "방문-순교" && /(평화연대|시민단체|집행위원장|집해위원장|구청|시청)/.test(combined) && !/교도|교무|광원회/.test(combined)) {
+            recCat = "기관순방-순방";
+            catReason = "외부 시민단체 대표 문상은 교화 목적보다 일반 대외 방문인 '순방 - 기관순방' 권장 (지침서 40p)";
+          } else if (cat === "행사참석-참석") {
+            if (/출가총단회\s*참석/.test(title)) {
+              recCat = "출가교화단참석-참석";
+              catReason = "출가총단회 참석은 '참석 - 출가교화단참석'으로 분류 (지침서 40p)";
+            } else if (anyContains(title, ["법호수여식 참석", "종재식 참석", "재식 참석"])) {
+              recCat = "의식참석-참석";
+              catReason = "법호수여식·종재식은 의식이므로 '참석 - 의식참석'으로 분류 (지침서 39p)";
+            } else if (anyContains(title, ["자녀교육 참석", "특강"])) {
+              recCat = "교육참석-참석";
+              catReason = "강연·특강 참석은 '참석 - 교육참석'으로 분류 (지침서 39p)";
+            }
+          } else if ((cat === "법회참석-참석" || cat === "회의참석-참석") && imp === "기타사항") {
+            recImp = "주요일반사항";
+            catReason = "외부 교당 초청법회 및 대외 위원회 참석은 '주요일반사항'으로 설정 권장 (지침서 82p)";
+          }
+
+          if (combined.includes("토지") && anyContains(combined, ["대토", "매입", "매각", "교환"]) && imp !== "연혁") {
+            recImp = "연혁";
+            if (!catReason) {
+              catReason = "토지 매입·매각·대토(교환) 계약 등 주요 교산 변동은 중요도를 '연혁'으로 설정 (지침서 39p·82p)";
+            }
+          }
+
+          // Output pure clean classification strings (No reason in afterText!)
+          if (recImp !== imp || recCat !== cat) {
+            changes.push({
+              id: `${e.seq}_cat`,
+              kind: "CAT_ISSUE",
+              typeLabel: "분류/중요도 변경",
+              beforeText: formatImpMainSub(imp, cat),
+              afterText: formatImpMainSub(recImp, recCat),
+              reason: catReason,
+              actionPayload: { recImp, recCat }
+            });
+          }
+
+          // 2. Clear content/time/duplicate errors (Short, multi-line)
+          if (title.includes("좌선") && !content.includes("좌선") && content.length > 5) {
+            changes.push({
+              id: `${e.seq}_content_mismatch`,
+              kind: "MISMATCH",
+              typeLabel: "내용 오류 수정",
+              beforeText: "[내용 오기재]\n'○○지구 출가단회 참석...'\n(제목 '아침좌선'과 불일치)",
+              afterText: "[내용 수정]\n'아침좌선'으로 수정\n(단회 참석 시 제목·분류 변경)",
+              reason: "제목('아침좌선')과 내용이 서로 다른 사안으로 오기재됨"
+            });
+          }
+
+          const m_t = title.match(/111-(\d+)/);
+          const m_c = content.match(/111-(\d+)/);
+          if (m_t && m_c && m_t[1] !== m_c[1]) {
+            changes.push({
+              id: `${e.seq}_round_mismatch`,
+              kind: "MISMATCH",
+              typeLabel: "내용 회차 수정",
+              beforeText: `[회차 오기재]\n내용 첫 줄 '111-${m_c[1]}'\n(제목 111-${m_t[1]}와 불일치)`,
+              afterText: `[회차 수정]\n내용 첫 줄 '111-${m_t[1]}'로 변경\n(당일 실제 법회 내용으로 수정)`,
+              reason: "이전 회차 내용을 복사한 뒤 회차 번호 미수정"
+            });
+          }
+
+          if (title.includes("완도교당") && content.includes("소남훈련원") && !content.includes("완도교당")) {
+            changes.push({
+              id: `${e.seq}_org_mismatch`,
+              kind: "MISMATCH",
+              typeLabel: "기관명 일치 수정",
+              beforeText: "제목: 완도교당, 철산농원\n내용: 소남훈련원",
+              afterText: "실제 방문 기관명으로\n제목·내용 일치화",
+              reason: "제목의 기관명과 내용의 기관명이 서로 다름"
+            });
+          }
+
+          const sig = `${e.date}|${e.time}|${title}`;
+          if (sigFirstSeen[sig]) {
+            changes.push({
+              id: `${e.seq}_dup_delete`,
+              kind: "MISMATCH",
+              typeLabel: "중복 일지 삭제",
+              beforeText: `#${sigFirstSeen[sig]}번 일지와 동일 내용\n(일시·제목 중복 등록)`,
+              afterText: "[삭제 조치]\n원티스에서 중복 일지 1건 삭제",
+              reason: "동일한 일지가 2번 중복 등록됨"
+            });
+          } else {
+            sigFirstSeen[sig] = e.seq;
+          }
+
+          if (/PM\s*18:\d+-AM\s*11:\d+/.test(e.time)) {
+            changes.push({
+              id: `${e.seq}_time_typo`,
+              kind: "MISMATCH",
+              typeLabel: "시간 오타 수정",
+              beforeText: `[시간 오타]\nPM 18:30 - AM 11:00\n(오전 11시로 잘못 입력됨)`,
+              afterText: `[시간 수정]\nPM 18:30 - PM 21:00\n(저녁 시간대로 수정)`,
+              reason: "종료 시간 AM/PM 선택 오타"
+            });
+          }
+        }
+
+        return {
+          ...e,
+          curFormattedCat: formatImpMainSub(imp, cat),
+          recImp,
+          recCat,
+          recFormattedCat: formatImpMainSub(recImp, recCat),
+          isAutoMeeting,
+          isBundledWork,
+          isExempt: (isAutoMeeting || isBundledWork),
+          isUnapproved,
+          changes,
+          hasCatChange: (recImp !== imp || recCat !== cat),
+          hasMismatch: changes.some(c => c.kind === "MISMATCH"),
+          hasAnyAction: changes.length > 0
+        };
+      });
+    }
+
+    function anyContains(str, words) {
+      if (!str || !words || !Array.isArray(words)) return false;
+      const s = String(str);
+      return words.some(w => s.includes(w));
+    }
+
+    // Build flattened display rows with hold checkbox state
+    function buildDisplayRows(entries, filterMode, searchQ, authorFilter) {
+      const q = (searchQ || "").trim().toLowerCase();
+      const rows = [];
+
+      entries.forEach(e => {
+        if (authorFilter !== "ALL" && e.author !== authorFilter) return;
+
+        if (filterMode === "ACTION_ONLY" && !e.hasAnyAction) return;
+        if (filterMode === "CAT_ISSUE" && !e.hasCatChange) return;
+        if (filterMode === "MISMATCH" && !e.hasMismatch) return;
+        if (filterMode === "UNAPPROVED" && !e.isUnapproved) return;
+        if (filterMode === "EXEMPT" && !e.isExempt) return;
+
+        if (e.changes.length > 0) {
+          const relevantChanges = e.changes.filter(c => {
+            if (filterMode === "CAT_ISSUE") return c.kind === "CAT_ISSUE";
+            if (filterMode === "MISMATCH") return c.kind === "MISMATCH";
+            return true;
+          });
+
+          relevantChanges.forEach((chg, idx) => {
+            const isHold = Boolean(holdMap[chg.id]);
+            if (filterMode === "APPLY_ONLY" && isHold) return;
+            if (filterMode === "HOLD_ONLY" && !isHold) return;
+
+            const hay = `${e.seq} ${e.date} ${e.title} ${e.author} ${chg.beforeText} ${chg.afterText} ${chg.typeLabel}`.toLowerCase();
+            if (q && !hay.includes(q)) return;
+
+            rows.push({
+              entry: e,
+              changeId: chg.id,
+              changeObj: chg,
+              seq: e.seq,
+              subIdx: idx,
+              totalSub: relevantChanges.length,
+              rowKind: chg.kind,
+              typeLabel: chg.typeLabel,
+              beforeText: chg.beforeText,
+              afterText: chg.afterText,
+              reason: chg.reason,
+              isHold: isHold,
+              approvalText: e.isUnapproved ? "승인 필요" : "승인완료"
+            });
+          });
+        } else if (filterMode === "ALL" || filterMode === "EXEMPT" || filterMode === "UNAPPROVED") {
+          const statusNote = e.isAutoMeeting
+            ? "회의관리 자동등록 (검수 예외)"
+            : e.isBundledWork
+            ? "일괄 묶음 일지 (검수 예외)"
+            : "변경사항 없음 (적정)";
+          const hay = `${e.seq} ${e.date} ${e.title} ${e.author} ${e.curFormattedCat} ${statusNote}`.toLowerCase();
+          if (q && !hay.includes(q)) return;
+
+          rows.push({
+            entry: e,
+            changeId: `${e.seq}_none`,
+            changeObj: null,
+            seq: e.seq,
+            subIdx: 0,
+            totalSub: 1,
+            rowKind: e.isExempt ? "EXEMPT" : "OK",
+            typeLabel: e.isAutoMeeting ? "회의관리 예외" : e.isBundledWork ? "일괄묶음 예외" : "정상",
+            beforeText: e.curFormattedCat,
+            afterText: statusNote,
+            reason: "검수 예외 또는 정상 일지입니다.",
+            isHold: false,
+            approvalText: e.isUnapproved ? "승인 필요" : "승인완료"
+          });
+        }
+      });
+
+      const showApplied = ["ALL", "ACTION_ONLY", "CAT_ISSUE", "APPLY_ONLY"].includes(filterMode);
+      if (showApplied) {
+        appliedLog.forEach(a => {
+          if (authorFilter !== "ALL" && a.author !== authorFilter) return;
+          const hay = `${a.seq} ${a.date} ${a.title} ${a.author} ${a.beforeText} ${a.afterText} ${a.typeLabel}`.toLowerCase();
+          if (q && !hay.includes(q)) return;
+          rows.push({
+            entry: { date: a.date, author: a.author, title: a.title, place: a.place },
+            changeId: `${a.key}_applied`, changeObj: null, seq: a.seq, subIdx: 0, totalSub: 1,
+            rowKind: "APPLIED", typeLabel: a.typeLabel, beforeText: a.beforeText, afterText: a.afterText,
+            reason: "", isHold: false, approvalText: a.isUnapproved ? "승인 필요" : "승인완료"
+          });
+        });
+        rows.sort((x, y) => x.seq - y.seq);
+      }
+
+      return rows;
+    }
+
+    // =========================================================================
+    // RENDER TABLE & DETAIL PANEL
+    // =========================================================================
+    function refreshAll() {
+      analyzedEntries = analyzeAllEntries(rawEntries);
+      updateFilterDropdowns();
+      renderKPIsAndCharts();
+      renderTable();
+      renderDetailPanel(selectedSeq);
+    }
+
+    function updateFilterDropdowns() {
+      const authorSel = document.getElementById("filterAuthor");
+      const curAuthor = authorSel.value;
+      const authors = [...new Set(analyzedEntries.map(e => e.author).filter(Boolean))];
+      authorSel.innerHTML = `<option value="ALL">전체 작성자 (${authors.length}명)</option>` +
+        authors.map(a => `<option value="${a}">${a}</option>`).join("");
+      if (authors.includes(curAuthor)) authorSel.value = curAuthor;
+    }
+
+    // 분류별 일괄 보류: 같은 제안(수정 전→수정 후) 또는 같은 현재 분류의 제안을 묶음
+    function getHoldGroups() {
+      const groups = new Map();
+      const add = (key, label, id) => {
+        if (!groups.has(key)) groups.set(key, { label, ids: [] });
+        groups.get(key).ids.push(id);
+      };
+      analyzedEntries.forEach(e => {
+        e.changes.forEach(c => {
+          if (c.kind === "CAT_ISSUE") {
+            add(`PAIR|${c.beforeText}|${c.afterText}`, `${c.beforeText.replace(/\n/g, " ")} → ${c.afterText.replace(/\n/g, " ")}`, c.id);
+          } else {
+            add(`KIND|${c.kind}`, `${c.typeLabel} 전체`, c.id);
+          }
+          add(`CUR|${e.category}`, `현재 분류 ${e.category}`, c.id);
+        });
+      });
+      return groups;
+    }
+
+    function renderGroupHold() {
+      const sel = document.getElementById("groupHoldSelect");
+      const btn = document.getElementById("btnGroupHold");
+      if (!sel || !btn) return;
+      const prev = sel.value;
+      const groups = getHoldGroups();
+      const opt = (key, g) => {
+        const held = g.ids.filter(id => holdMap[id]).length;
+        return `<option value="${escapeHtml(key)}">${escapeHtml(g.label)} (${g.ids.length}건${held ? `, 보류 ${held}` : ""})</option>`;
+      };
+      const pairs = [], curs = [];
+      groups.forEach((g, k) => (k.startsWith("CUR|") ? curs : pairs).push([k, g]));
+      pairs.sort((a, b) => b[1].ids.length - a[1].ids.length);
+      curs.sort((a, b) => b[1].ids.length - a[1].ids.length);
+      sel.innerHTML = `<option value="">분류별 일괄 보류 선택...</option>` +
+        (pairs.length ? `<optgroup label="제안 내용별 (수정 전 → 수정 후)">${pairs.map(([k, g]) => opt(k, g)).join("")}</optgroup>` : "") +
+        (curs.length ? `<optgroup label="현재 분류별">${curs.map(([k, g]) => opt(k, g)).join("")}</optgroup>` : "");
+      if (prev && groups.has(prev)) sel.value = prev;
+      const g = groups.get(sel.value);
+      btn.disabled = !g;
+      btn.textContent = !g ? "선택 분류 전체 보류" : (g.ids.some(id => !holdMap[id]) ? "선택 분류 전체 보류" : "선택 분류 보류 해제");
+    }
+
+    function renderKPIsAndCharts() {
+      const total = analyzedEntries.length;
+      let allChangeCount = 0;
+      let catIssues = 0;
+      let mismatches = 0;
+      let holdCount = 0;
+      let activeApplyCount = 0;
+
+      analyzedEntries.forEach(e => {
+        e.changes.forEach(c => {
+          allChangeCount++;
+          if (c.kind === "CAT_ISSUE") catIssues++;
+          if (c.kind === "MISMATCH") mismatches++;
+          if (holdMap[c.id]) holdCount++;
+          else activeApplyCount++;
+        });
+      });
+
+      document.getElementById("badgeActionCount").textContent = `수정 제안 ${allChangeCount}건`;
+      document.getElementById("kpiTotal").textContent = `${allChangeCount}건`;
+      document.getElementById("kpiScoreAvg").textContent = `분류 ${catIssues}건 · 내용오류 ${mismatches}건`;
+      document.getElementById("kpiActiveApply").textContent = `${activeApplyCount}건`;
+      document.getElementById("kpiHoldCount").textContent = `${holdCount}건`;
+      document.getElementById("kpiCatIssue").textContent = `${catIssues}건`;
+      document.getElementById("kpiMismatch").textContent = `${mismatches}건`;
+      document.getElementById("kpiShort").textContent = `${total}건`;
+
+      document.getElementById("btnApplyAllLabel").textContent = `✨ 반영 대상(${activeApplyCount}건) 일괄 적용`;
+
+      const getMainCat = (catStr) => {
+        if (!catStr) return "기타";
+        const parts = catStr.split("-");
+        return parts[1] || parts[0];
+      };
+
+      const mainCatLabels = ["기타", "행정", "참석", "회의", "법회", "의식", "방문(접견)", "교산", "단체", "순교", "행사", "훈련"];
+      const curCounts = mainCatLabels.map(l => analyzedEntries.filter(e => getMainCat(e.category) === l).length);
+      const recCounts = mainCatLabels.map(l => analyzedEntries.filter(e => {
+        const isHeld = e.changes.some(c => c.kind === "CAT_ISSUE" && holdMap[c.id]);
+        return getMainCat(isHeld ? e.category : e.recCat) === l;
+      }).length);
+
+      renderGroupHold();
+      const ctx1 = document.getElementById("chartCategoryCompare").getContext("2d");
+      if (chartCatInstance) chartCatInstance.destroy();
+      chartCatInstance = new Chart(ctx1, {
+        type: "bar",
+        data: {
+          labels: mainCatLabels,
+          datasets: [
+            { label: "수정 전", data: curCounts, backgroundColor: "#94a3b8", borderRadius: 4 },
+            { label: "수정 후(제안)", data: recCounts, backgroundColor: "#4f46e5", borderRadius: 4 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: "top", labels: { boxWidth: 10, font: { size: 10 } } } },
+          scales: {
+            x: { ticks: { font: { size: 9 } } },
+            y: { beginAtZero: true, ticks: { font: { size: 9 } } }
+          }
+        }
+      });
+
+      const ctx2 = document.getElementById("chartIssueBreakdown").getContext("2d");
+      if (chartIssueInstance) chartIssueInstance.destroy();
+      chartIssueInstance = new Chart(ctx2, {
+        type: "doughnut",
+        data: {
+          labels: ["반영 대상 (체크됨)", "수정 보류 (제외)", "정상 및 예외"],
+          datasets: [{
+            data: [
+              activeApplyCount,
+              holdCount,
+              analyzedEntries.filter(e => !e.hasAnyAction).length
+            ],
+            backgroundColor: ["#059669", "#94a3b8", "#cbd5e1"]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "right", labels: { boxWidth: 10, font: { size: 10 } } }
+          }
+        }
+      });
+    }
+
+    function renderTable() {
+      const filterMode = document.getElementById("filterIssueType").value;
+      const searchQ = document.getElementById("searchInput").value;
+      const authorFilter = document.getElementById("filterAuthor").value;
+
+      const rows = buildDisplayRows(analyzedEntries, filterMode, searchQ, authorFilter);
+      document.getElementById("filteredCountText").textContent = `표시 중: ${rows.length}줄`;
+      const tbody = document.getElementById("logTableBody");
+
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="py-12 text-center text-slate-400 text-sm">해당 조건에 맞는 수정 제안 내역이 없습니다.</td></tr>`;
+        return;
+      }
+
+      if (!rows.some(r => r.seq === selectedSeq)) {
+        selectedSeq = rows[0].seq;
+      }
+
+      tbody.innerHTML = rows.map(r => {
+        const isSelected = (r.seq === selectedSeq);
+        const rowBg = isSelected ? "bg-indigo-50/90" : (r.isHold ? "bg-slate-50/80 opacity-60" : "hover:bg-slate-50");
+
+        let typeBadge = "";
+        if (r.rowKind === "CAT_ISSUE") {
+          typeBadge = `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 mb-0.5">${r.typeLabel}</span>`;
+        } else if (r.rowKind === "APPLIED") {
+          typeBadge = `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 mb-0.5">${r.typeLabel} · 적용 완료</span>`;
+        } else if (r.rowKind === "MISMATCH") {
+          typeBadge = `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 mb-0.5">${r.typeLabel}</span>`;
+        }
+
+        const holdStatusBadge = r.isHold
+          ? `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700 ml-1">[보류됨]</span>`
+          : "";
+
+        const approvalBadge = r.approvalText === "승인 필요"
+          ? `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300">미승인</span>`
+          : `<span class="text-[11px] text-slate-400">승인</span>`;
+
+        return `
+          <tr data-seq="${r.seq}" data-change-id="${r.changeId}" class="log-row cursor-pointer transition ${rowBg}">
+            <td class="py-2.5 px-2 text-center align-top" onclick="event.stopPropagation()">
+              ${r.changeObj ? `
+                <input type="checkbox" data-chk-id="${r.changeId}" class="row-hold-chk rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer" ${r.isHold ? '' : 'checked'} title="체크 시 반영 대상, 체크 해제 시 보류" />
+              ` : (r.rowKind === "APPLIED" ? `<span class="text-emerald-600 font-bold" title="적용 완료">✔</span>` : `
+                <span class="text-slate-300">-</span>
+              `)}
+            </td>
+            <td class="py-2.5 px-2 font-bold text-slate-800 text-center align-top">
+              ${r.subIdx === 0 ? r.seq : `<span class="text-slate-400 text-xs">↳ ${r.seq}</span>`}
+            </td>
+            <td class="py-2.5 px-2.5 align-top">
+              <div class="text-xs font-bold text-slate-900">${r.entry.date}</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">${escapeHtml(r.entry.author)}</div>
+            </td>
+            <td class="py-2.5 px-3 align-top">
+              <div class="text-xs font-bold text-slate-900 leading-snug">${escapeHtml(r.entry.title)}</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">${escapeHtml(r.entry.place || "")}</div>
+            </td>
+            <td class="py-2.5 px-3 align-top">
+              ${typeBadge}
+              <div class="text-xs text-rose-700 font-semibold whitespace-pre-line leading-relaxed">${escapeHtml(r.beforeText)}</div>
+            </td>
+            <td class="py-2.5 px-3 align-top">
+              ${holdStatusBadge}
+              <div class="text-xs text-indigo-950 font-bold whitespace-pre-line leading-relaxed ${r.isHold ? 'line-through text-slate-400' : ''}">${escapeHtml(r.afterText)}</div>
+              ${(r.changeObj && r.reason) ? `<div class="mt-1 text-[11px] text-slate-500 leading-snug">💡 ${escapeHtml(r.reason)}</div>` : ""}
+            </td>
+            <td class="py-2.5 px-2 align-top text-center">
+              ${r.subIdx === 0 ? approvalBadge : ""}
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      // Bind row clicks
+      tbody.querySelectorAll(".log-row").forEach(tr => {
+        tr.addEventListener("click", () => {
+          selectedSeq = parseInt(tr.getAttribute("data-seq"), 10);
+          renderTable();
+          renderDetailPanel(selectedSeq);
+        });
+      });
+
+      // Bind hold checkboxes
+      tbody.querySelectorAll(".row-hold-chk").forEach(chk => {
+        chk.addEventListener("change", (e) => {
+          const cid = chk.getAttribute("data-chk-id");
+          holdMap[cid] = !chk.checked; // unchecked => hold = true
+          renderKPIsAndCharts();
+          renderTable();
+          renderDetailPanel(selectedSeq);
+          showToast(chk.checked ? "반영 대상으로 지정되었습니다." : "수정이 보류(제외)되었습니다.");
+        });
+      });
+    }
+
+    function renderDetailPanel(seq) {
+      const panel = document.getElementById("detailInspectorPanel");
+      const item = analyzedEntries.find(e => e.seq === seq) || analyzedEntries[0];
+      if (!item) {
+        panel.innerHTML = `<div class="text-sm text-slate-400">항목을 선택하세요.</div>`;
+        return;
+      }
+
+      const changeCardsHtml = item.changes.length === 0
+        ? `<div class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-medium">
+             ${item.isAutoMeeting
+               ? "🛡️ <strong>회의관리 자동등록 예외</strong>: 원티스 회의록 작성 시 자동 생성된 일지이므로 검수 대상에서 제외했습니다."
+               : item.isBundledWork
+               ? "🛡️ <strong>일괄 묶음 예외</strong>: 교구 일과를 묶어 기록한 일지이므로 검수 지적에서 제외했습니다."
+               : "✔ 분류 및 내용에 수정할 사항이 없습니다."}
+           </div>`
+        : item.changes.map((c, idx) => {
+            const isHold = Boolean(holdMap[c.id]);
+            return `
+              <div class="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm space-y-2 ${isHold ? 'border-dashed bg-slate-50/70' : ''}">
+                <div class="flex items-center justify-between">
+                  <span class="px-2 py-0.5 rounded text-xs font-bold ${c.kind === 'CAT_ISSUE' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-900'}">
+                    변경사항 ${idx + 1}: ${c.typeLabel}
+                  </span>
+                  <div class="flex items-center gap-1.5">
+                    <button data-toggle-hold-id="${c.id}" class="btn-toggle-hold px-2 py-1 rounded-md text-[11px] font-semibold transition ${isHold ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}">
+                      ${isHold ? '▶️ 보류 해제' : '⏸️ 수정 보류'}
+                    </button>
+                    ${c.kind === "CAT_ISSUE" && !isHold
+                      ? `<button data-apply-cat-id="${c.id}" class="btn-apply-single px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold transition">반영</button>`
+                      : ""}
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                  <div class="p-2.5 rounded-lg bg-rose-50/70 border border-rose-200">
+                    <div class="text-[10px] font-bold text-rose-500 uppercase">수정 전 (현재)</div>
+                    <div class="font-bold text-rose-900 mt-0.5 whitespace-pre-line">${escapeHtml(c.beforeText)}</div>
+                  </div>
+                  <div class="p-2.5 rounded-lg bg-indigo-50/80 border border-indigo-200">
+                    <div class="text-[10px] font-bold text-indigo-600 uppercase">수정 후 (제안)</div>
+                    <div class="font-bold text-indigo-950 mt-0.5 whitespace-pre-line ${isHold ? 'line-through text-slate-400' : ''}">${escapeHtml(c.afterText)}</div>
+                  </div>
+                </div>
+
+                <!-- Reason is clearly shown HERE on the web, keeping the table and output clean! -->
+                ${c.reason ? `
+                  <div class="p-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
+                    <strong class="text-indigo-900">💡 제안 근거 (지침서 기준):</strong> ${escapeHtml(c.reason)}
+                  </div>
+                ` : ""}
+              </div>
+            `;
+          }).join("");
+
+      panel.innerHTML = `
+        <div class="space-y-4">
+          <div class="flex items-start justify-between gap-2 border-b border-slate-200 pb-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 rounded-md bg-slate-900 text-white text-xs font-bold">순서 #${item.seq}</span>
+                <span class="text-xs font-bold text-slate-700">${item.date}</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-medium">${escapeHtml(item.author)}</span>
+              </div>
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 mt-1.5">${escapeHtml(item.title)}</h3>
+              <p class="text-xs text-slate-500 mt-0.5">시간: ${escapeHtml(item.time)} · 장소: ${escapeHtml(item.place || "(미입력)")}</p>
+            </div>
+            <div>
+              ${item.isUnapproved
+                ? `<span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-sky-100 text-sky-800 border border-sky-300">승인 필요</span>`
+                : `<span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-600">승인완료</span>`}
+            </div>
+          </div>
+
+          <!-- Line-by-line change cards -->
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between text-xs font-bold text-slate-800">
+              <span>📌 변경 제안 상세 및 근거 (${item.changes.length}건)</span>
+            </div>
+            ${changeCardsHtml}
+          </div>
+
+          <!-- Original Content Viewer & Editor -->
+          <div class="space-y-2 pt-2 border-t border-slate-200">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-800">📄 일지 본문 내용</label>
+              <button id="btnSendToSimulator" class="text-[11px] px-2 py-1 rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-800 font-semibold transition">단건 테스트로 복사</button>
+            </div>
+            <textarea id="detailEditContent" rows="5" class="w-full p-2.5 rounded-xl border border-slate-300 text-xs leading-relaxed bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">${escapeHtml(item.content)}</textarea>
+            <div class="flex justify-end">
+              <button id="btnSaveDetailContent" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition">내용 저장</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Bind toggle hold inside detail panel
+      panel.querySelectorAll(".btn-toggle-hold").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const cid = btn.getAttribute("data-toggle-hold-id");
+          holdMap[cid] = !holdMap[cid];
+          renderKPIsAndCharts();
+          renderTable();
+          renderDetailPanel(selectedSeq);
+          showToast(holdMap[cid] ? "해당 수정사항을 보류 처리했습니다." : "보류를 해제하고 반영 대상으로 지정했습니다.");
+        });
+      });
+
+      // Bind apply single
+      panel.querySelectorAll(".btn-apply-single").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const cid = btn.getAttribute("data-apply-cat-id");
+          const target = rawEntries.find(r => r.seq === item.seq);
+          if (target) {
+            recordApplied(item, (item.changes || []).find(c => c.kind === "CAT_ISSUE"));
+            target.importance = item.recImp;
+            target.category = item.recCat;
+            refreshAll();
+            showToast(`#${item.seq}번 일지가 [${item.recFormattedCat}](으)로 반영되었습니다.`);
+          }
+        });
+      });
+
+      document.getElementById("btnSaveDetailContent").addEventListener("click", () => {
+        const target = rawEntries.find(r => r.seq === item.seq);
+        if (target) {
+          target.content = document.getElementById("detailEditContent").value;
+          refreshAll();
+          showToast(`#${item.seq}번 일지 본문이 저장되었습니다.`);
+        }
+      });
+
+      document.getElementById("btnSendToSimulator").addEventListener("click", () => {
+        document.getElementById("simDate").value = item.date;
+        document.getElementById("simTime").value = item.time;
+        document.getElementById("simImportance").value = item.importance;
+        document.getElementById("simCategory").value = item.category;
+        document.getElementById("simTitle").value = item.title;
+        document.getElementById("simPlace").value = item.place;
+        document.getElementById("simMale").value = item.male;
+        document.getElementById("simFemale").value = item.female;
+        document.getElementById("simTotal").value = item.total;
+        document.getElementById("simContent").value = item.content;
+        switchTab("simulator");
+        runSimulator();
+      });
+    }
+
+    // =========================================================================
+    // EXCEL EXPORT (.XLSX) WITH SHORT LINES & HOLD STATE
+    // =========================================================================
+    // 파일 저장이 막힌 화면(조직 밖 사용자 등)용: 수정제안표를 띄우고 엑셀에 붙여넣을 수 있게 복사
+    function showCopyModal(rows, heldCount) {
+      const old = document.getElementById("copyModal");
+      if (old) old.remove();
+      const esc = (t) => escapeHtml(String(t == null ? "" : t)).replace(/\n/g, "<br>");
+      const cell = "border:1px solid #cbd5e1;padding:4px 6px;vertical-align:top;font-size:10pt;";
+      const typeBg = { CAT_ISSUE: "#ffe4e6", MISMATCH: "#fef3c7", APPLIED: "#d1fae5" };
+      const head = ["순서", "일자", "작성자", "일지 제목", "장소", "변경 구분", "수정 전 (현재)", "수정 후 (제안)", "승인"];
+      const tableHtml =
+        `<table style="border-collapse:collapse;font-family:'Malgun Gothic',sans-serif;">` +
+        `<tr>${head.map(h => `<th style="${cell}background:#e0e7ff;font-weight:bold;">${h}</th>`).join("")}</tr>` +
+        rows.map(r => `<tr>` +
+          `<td style="${cell}text-align:center;">${esc(r.seq)}</td>` +
+          `<td style="${cell}">${esc(r.date)}</td>` +
+          `<td style="${cell}">${esc(r.author)}</td>` +
+          `<td style="${cell}">${esc(r.title)}</td>` +
+          `<td style="${cell}">${esc(r.place)}</td>` +
+          `<td style="${cell}background:${typeBg[r.kind] || "#f1f5f9"};font-weight:bold;">${esc(r.typeLabel)}</td>` +
+          `<td style="${cell}color:#be123c;font-weight:bold;">${esc(r.before)}</td>` +
+          `<td style="${cell}color:#1e1b4b;font-weight:bold;">${esc(r.after)}</td>` +
+          `<td style="${cell}text-align:center;">${esc(r.approval)}</td>` +
+        `</tr>`).join("") + `</table>`;
+      const tsvCell = (t) => {
+        const v = String(t == null ? "" : t);
+        return /[\t\n"]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+      };
+      const tsv = [head].concat(rows.map(r => [r.seq, r.date, r.author, r.title, r.place, r.typeLabel, r.before, r.after, r.approval]))
+        .map(line => line.map(tsvCell).join("\t")).join("\n");
+
+      const modal = document.createElement("div");
+      modal.id = "copyModal";
+      modal.className = "fixed inset-0 z-50 bg-slate-900/60 flex items-start justify-center p-4 overflow-y-auto";
+      modal.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl my-6">
+          <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 class="text-base font-bold text-slate-900">수정제안표 (${rows.length}건${heldCount ? ` · 보류 ${heldCount}건 제외` : ""})</h3>
+              <p class="text-xs text-slate-500 mt-1">이 화면에서는 파일 저장이 허용되지 않아 표로 보여 드립니다. <strong>[표 복사]</strong>를 누른 뒤 엑셀이나 한글에 붙여넣으세요(Ctrl+V).</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="btnCopyTable" type="button" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold">📋 표 복사</button>
+              <button id="btnCloseCopyModal" type="button" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-medium">닫기</button>
+            </div>
+          </div>
+          <div class="p-4 sm:p-5 overflow-x-auto" id="copyTableWrap">${rows.length ? tableHtml : '<p class="text-sm text-slate-500">수정 제안 내역이 없습니다.</p>'}</div>
+        </div>`;
+      document.body.appendChild(modal);
+      const close = () => modal.remove();
+      modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+      document.getElementById("btnCloseCopyModal").addEventListener("click", close);
+      document.getElementById("btnCopyTable").addEventListener("click", async () => {
+        try {
+          if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+            await navigator.clipboard.write([new ClipboardItem({
+              "text/html": new Blob([tableHtml], { type: "text/html" }),
+              "text/plain": new Blob([tsv], { type: "text/plain" })
+            })]);
+            showToast("표를 복사했습니다. 엑셀에 붙여넣으세요.");
+            return;
+          }
+          throw new Error("no rich clipboard");
+        } catch (e1) {
+          try {
+            await navigator.clipboard.writeText(tsv);
+            showToast("표를 복사했습니다. 엑셀에 붙여넣으세요.");
+            return;
+          } catch (e2) {
+            const wrap = document.getElementById("copyTableWrap");
+            const range = document.createRange();
+            range.selectNodeContents(wrap);
+            const selObj = window.getSelection();
+            selObj.removeAllRanges();
+            selObj.addRange(range);
+            let ok = false;
+            try { ok = document.execCommand && document.execCommand("copy"); } catch (e3) { ok = false; }
+            showToast(ok ? "표를 복사했습니다. 엑셀에 붙여넣으세요." : "표를 선택해 두었습니다. Ctrl+C로 복사해 주세요.", ok ? "✓" : "ℹ️");
+          }
+        }
+      });
+    }
+
+    function exportInspectedExcel() {
+      // 화면 표와 같은 순서·모양으로 수정제안표를 만듦 (반영 대상 · 보류 · 적용 완료 모두 포함)
+      const rows = [];
+      let heldCount = 0;
+      analyzedEntries.forEach(e => {
+        const active = e.changes.filter(c => {
+          if (holdMap[c.id]) { heldCount++; return false; }
+          return true;
+        });
+        active.forEach((chg, idx) => {
+          rows.push({
+            seq: e.seq, sub: idx, date: e.date, author: e.author, title: e.title, place: e.place || "",
+            kind: chg.kind, typeLabel: chg.typeLabel, before: chg.beforeText, after: chg.afterText,
+            status: "반영 대상",
+            approval: idx === 0 && e.isUnapproved ? "미승인" : (idx === 0 ? "승인" : "")
+          });
+        });
+      });
+      appliedLog.forEach(a => rows.push({
+        seq: a.seq, sub: 0, date: a.date, author: a.author, title: a.title, place: a.place,
+        kind: "APPLIED", typeLabel: a.typeLabel, before: a.beforeText, after: a.afterText,
+        status: "적용 완료", approval: a.isUnapproved ? "미승인" : "승인"
+      }));
+      rows.sort((x, y) => x.seq - y.seq || x.sub - y.sub);
+
+      const fileName = "원티스_종합일지_수정제안표.xlsx";
+      const today = new Date();
+      const printed = `${today.getFullYear()}. ${today.getMonth() + 1}. ${today.getDate()}.`;
+
+      const buildWithExcelJS = async () => {
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet("1_수정제안표", { views: [{ state: "frozen", ySplit: 4 }],
+          pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } } });
+        ws.columns = [
+          { key: "chk", width: 6 }, { key: "seq", width: 7 }, { key: "date", width: 14 },
+          { key: "title", width: 34 }, { key: "type", width: 16 }, { key: "before", width: 34 },
+          { key: "after", width: 34 }, { key: "status", width: 12 }, { key: "approval", width: 9 }
+        ];
+        const thin = { style: "thin", color: { argb: "FFCBD5E1" } };
+        const border = { top: thin, left: thin, bottom: thin, right: thin };
+
+        ws.mergeCells("A1:I1");
+        ws.getCell("A1").value = "원티스 종합일지 수정 제안표";
+        ws.getCell("A1").font = { bold: true, size: 15, color: { argb: "FF0F172A" } };
+        ws.mergeCells("A2:I2");
+        const cnt = (st) => rows.filter(r => r.status === st).length;
+        ws.getCell("A2").value = `${currentDatasetTitle} · 출력일 ${printed} · 수정 대상 ${cnt("반영 대상") + cnt("적용 완료")}건` + (heldCount ? ` (보류 ${heldCount}건 제외)` : "");
+        ws.getCell("A2").font = { size: 10, color: { argb: "FF64748B" } };
+        ws.getRow(3).height = 6;
+
+        const head = ws.getRow(4);
+        head.values = ["반영", "순서", "일자 / 작성자", "일지 제목 / 장소", "변경 구분", "수정 전 (현재)", "수정 후 (제안)", "상태", "승인"];
+        head.height = 22;
+        head.eachCell(c => {
+          c.font = { bold: true, size: 10, color: { argb: "FF1E293B" } };
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E7FF" } };
+          c.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+          c.border = border;
+        });
+
+        const typeFill = { CAT_ISSUE: "FFFFE4E6", MISMATCH: "FFFEF3C7", APPLIED: "FFD1FAE5" };
+        const typeFont = { CAT_ISSUE: "FF9F1239", MISMATCH: "FF78350F", APPLIED: "FF065F46" };
+        const statusFill = { "반영 대상": "FFE0E7FF", "보류": "FFE2E8F0", "적용 완료": "FFD1FAE5" };
+
+        rows.forEach(r => {
+          const isHold = r.status === "보류";
+          const row = ws.addRow({
+            chk: r.status === "적용 완료" ? "✔" : (isHold ? "☐" : "☑"),
+            seq: r.sub === 0 ? r.seq : `↳ ${r.seq}`,
+            date: `${r.date}\n${r.author}`,
+            title: r.place ? `${r.title}\n${r.place}` : r.title,
+            type: r.typeLabel,
+            before: r.before, after: r.after, status: r.status, approval: r.approval
+          });
+          row.eachCell({ includeEmpty: true }, c => {
+            c.alignment = { vertical: "top", wrapText: true };
+            c.border = border;
+            c.font = { size: 10, color: { argb: isHold ? "FF94A3B8" : "FF0F172A" } };
+          });
+          ["chk", "seq", "status", "approval"].forEach(k => row.getCell(k).alignment = { vertical: "top", horizontal: "center", wrapText: true });
+          row.getCell("type").fill = { type: "pattern", pattern: "solid", fgColor: { argb: typeFill[r.kind] || "FFF1F5F9" } };
+          row.getCell("type").font = { size: 10, bold: true, color: { argb: typeFont[r.kind] || "FF334155" } };
+          row.getCell("before").font = { size: 10, bold: true, color: { argb: isHold ? "FF94A3B8" : "FFBE123C" } };
+          row.getCell("after").font = { size: 10, bold: true, strike: isHold, color: { argb: isHold ? "FF94A3B8" : "FF1E1B4B" } };
+          row.getCell("status").fill = { type: "pattern", pattern: "solid", fgColor: { argb: statusFill[r.status] } };
+          row.getCell("status").font = { size: 10, bold: true, color: { argb: "FF1E293B" } };
+          if (r.approval === "미승인") {
+            row.getCell("approval").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0F2FE" } };
+            row.getCell("approval").font = { size: 10, bold: true, color: { argb: "FF075985" } };
+          }
+          if (r.status === "적용 완료") row.getCell("chk").font = { size: 11, bold: true, color: { argb: "FF059669" } };
+        });
+        if (rows.length === 0) {
+          const row = ws.addRow({ title: "수정 제안 내역이 없습니다." });
+          row.getCell("title").font = { size: 10, color: { argb: "FF64748B" } };
+        }
+        ws.headerFooter.oddFooter = "&C&P / &N";
+        ws.pageSetup.printTitlesRow = "4:4";
+
+        // 2) 전체 일지 대조
+        const ws2 = wb.addWorksheet("2_전체일지_대조", { views: [{ state: "frozen", ySplit: 1 }],
+          pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+        ws2.columns = [
+          { header: "순서", key: "seq", width: 7 }, { header: "일자", key: "date", width: 11 }, { header: "시간", key: "time", width: 18 },
+          { header: "현재 중요도", key: "imp", width: 12 }, { header: "현재 분류", key: "cat", width: 22 },
+          { header: "제안 중요도", key: "rimp", width: 12 }, { header: "제안 분류", key: "rcat", width: 22 },
+          { header: "일지 제목", key: "title", width: 34 }, { header: "작성자", key: "author", width: 10 },
+          { header: "승인여부", key: "appr", width: 9 }, { header: "검수 결과", key: "result", width: 44 }
+        ];
+        ws2.getRow(1).eachCell(c => {
+          c.font = { bold: true, size: 10 }; c.border = border;
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E7FF" } };
+          c.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+        });
+        analyzedEntries.forEach(e => {
+          const applied = appliedLog.filter(a => a.seq === e.seq).map(a => `[적용 완료] ${a.afterText.replace(/\n/g, " ")}`);
+          const activeChanges = e.changes.filter(c => !holdMap[c.id]);
+          const catActive = activeChanges.some(c => c.kind === "CAT_ISSUE");
+          const changesText = activeChanges.map(c => `[${c.typeLabel}] ${c.afterText.replace(/\n/g, " ")}`).concat(applied).join(" / ");
+          const row = ws2.addRow({
+            seq: e.seq, date: e.date, time: e.time, imp: e.importance, cat: e.category,
+            rimp: catActive ? e.recImp : e.importance, rcat: catActive ? e.recCat : e.category,
+            title: e.title, author: e.author, appr: e.approval,
+            result: e.isAutoMeeting ? "회의관리 자동등록(예외)" : e.isBundledWork ? "일괄묶음(예외)" : (changesText || (e.changes.length ? "변경 없음" : "정상"))
+          });
+          row.eachCell({ includeEmpty: true }, c => { c.alignment = { vertical: "top", wrapText: true }; c.border = border; c.font = { size: 10 }; });
+          if (activeChanges.length) row.getCell("result").font = { size: 10, bold: true, color: { argb: "FFBE123C" } };
+          else if (applied.length) row.getCell("result").font = { size: 10, bold: true, color: { argb: "FF065F46" } };
+        });
+
+        const buf = await wb.xlsx.writeBuffer();
+        return new Blob([buf]);
+      };
+
+      (async () => {
+        let blob;
+        try {
+          if (!window.ExcelJS) throw new Error("ExcelJS 없음");
+          blob = await buildWithExcelJS();
+        } catch (err) {
+          showToast("서식 엑셀을 만들지 못했습니다: " + err.message, "⚠️");
+          return;
+        }
+        let dl = null;
+        const inViewer = Boolean(window.claude && window.claude.use);
+        try { dl = inViewer ? await window.claude.use("downloads") : null; } catch (e) { dl = null; }
+        if (!dl) {
+          if (inViewer) { showCopyModal(rows, heldCount); return; }
+          try {
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob); a.download = fileName;
+            document.body.appendChild(a); a.click(); a.remove();
+            showToast("엑셀 파일 다운로드를 시작했습니다.");
+          } catch (e) { showCopyModal(rows, heldCount); }
+          return;
+        }
+        try {
+          await dl.save({ filename: fileName, data: blob });
+          showToast("수정제안표 엑셀 파일을 저장했습니다.");
+        } catch (e) {
+          const code = e && e.code;
+          if (code === "declined") showToast("저장을 취소했습니다.", "ℹ️");
+          else if (code === "rate_limited") showToast("저장 창이 이미 열려 있습니다. 잠시 후 다시 눌러 주세요.", "ℹ️");
+          else showCopyModal(rows, heldCount);
+        }
+      })();
+    }
+
+    // =========================================================================
+    // FILE UPLOAD & SIMULATOR
+    // =========================================================================
+    function handleUploadedFile(file) {
+      if (!file) return;
+      const ext = file.name.split(".").pop().toLowerCase();
+      const statusBox = document.getElementById("uploadStatusBox");
+      statusBox.classList.remove("hidden");
+      statusBox.textContent = `⏳ '${file.name}' 파일을 분석하고 있습니다...`;
+
+      if (ext === "pdf") {
+        parsePdfFile(file, statusBox);
+      } else {
+        parseExcelFile(file, statusBox);
+      }
+    }
+
+    function parseExcelFile(file, statusBox) {
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: "array" });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
+
+          const parsed = [];
+          let curr = null;
+
+          for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            const col1 = String(r[1] !== undefined && r[1] !== "" ? r[1] : r[0]).trim();
+            const isSeqNum = /^\d+(\.0)?$/.test(col1);
+
+            if (isSeqNum && r.length >= 6) {
+              const offset = (String(r[1]).trim() === col1) ? 1 : 0;
+              const dateVal = String(r[offset + 1] || "").trim();
+              if (/\d{2,4}[\.\-\/]\d{1,2}[\.\-\/]\d{1,2}/.test(dateVal)) {
+                if (curr) parsed.push(curr);
+                curr = {
+                  seq: parseInt(floatOrZero(col1), 10),
+                  date: dateVal,
+                  time: String(r[offset + 2] || "").trim(),
+                  importance: String(r[offset + 3] || "주요일반사항").trim(),
+                  category: String(r[offset + 4] || "기타-기타").trim(),
+                  title: String(r[offset + 6] !== undefined && offset === 1 ? r[7] : r[offset + 5] || "").trim(),
+                  place: String(offset === 1 ? (r[8] || "") : (r[offset + 6] || "")).trim(),
+                  male: parseInt(floatOrZero(offset === 1 ? r[9] : r[offset + 7]), 10),
+                  female: parseInt(floatOrZero(offset === 1 ? r[10] : r[offset + 8]), 10),
+                  total: parseInt(floatOrZero(offset === 1 ? r[11] : r[offset + 9]), 10),
+                  amount: parseInt(floatOrZero(offset === 1 ? r[12] : r[offset + 10]), 10),
+                  author: String(offset === 1 ? (r[14] || "") : (r[offset + 11] || "")).trim(),
+                  approval: String(offset === 1 ? (r[16] || "승인") : (r[offset + 12] || "승인")).trim(),
+                  content: String(offset === 0 && r[13] ? r[13] : "").trim()
+                };
+                continue;
+              }
+            }
+
+            if (curr) {
+              const labelCell = String(r[2] || r[0] || "").trim();
+              const textCell = String(r[3] || r[1] || "").trim();
+              if (labelCell === "내용") {
+                curr.content = textCell;
+              } else if (!labelCell && textCell && !textCell.startsWith("( 사업기간")) {
+                curr.content += (curr.content ? "\n" : "") + textCell;
+              }
+            }
+          }
+          if (curr) parsed.push(curr);
+
+          if (parsed.length === 0) {
+            statusBox.textContent = `⚠️ 파일에서 유효한 종합일지 행을 찾지 못했습니다. 원티스 종합일지 상세보기 엑셀 양식인지 확인해 주세요.`;
+            return;
+          }
+
+          rawEntries = parsed;
+          holdMap = {}; appliedLog = []; // reset on new file
+          selectedSeq = rawEntries[0].seq;
+          currentDatasetTitle = `${file.name} (총 ${parsed.length}건)`;
+          document.getElementById("headerDatasetInfo").textContent = `현재 로드됨: ${currentDatasetTitle}`;
+          refreshAll();
+          statusBox.innerHTML = `✅ <strong>${escapeHtml(file.name)}</strong>에서 총 <strong>${parsed.length}건</strong>의 일지를 불러와 검수를 완료했습니다. <button id="btnJumpToDashAfterUpload" class="ml-2 underline font-bold text-indigo-700">검수표 보러가기 →</button>`;
+          document.getElementById("btnJumpToDashAfterUpload").addEventListener("click", () => switchTab("dashboard"));
+          showToast(`${file.name} (${parsed.length}건) 로드 완료!`);
+        } catch (err) {
+          statusBox.textContent = `❌ 엑셀 파싱 오류: ${err.message}`;
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    async function parsePdfFile(file, statusBox) {
+      try {
+        if (!window.pdfjsLib) throw new Error("PDF.js 라이브러리를 불러오지 못했습니다.");
+        const buf = await file.arrayBuffer();
+        const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+        let allLines = [];
+
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const page = await pdf.getPage(p);
+          const textContent = await page.getTextContent();
+          const rowMap = {};
+          textContent.items.forEach(item => {
+            const y = Math.round(item.transform[5] / 4) * 4;
+            if (!rowMap[y]) rowMap[y] = [];
+            rowMap[y].push({ x: item.transform[4], str: item.str });
+          });
+          const sortedY = Object.keys(rowMap).map(Number).sort((a, b) => b - a);
+          sortedY.forEach(y => {
+            const lineStr = rowMap[y].sort((a, b) => a.x - b.x).map(i => i.str).join(" ").trim();
+            if (lineStr) allLines.push(lineStr);
+          });
+        }
+
+        const parsed = [];
+        let curr = null;
+        const headerRe = /^(\d+)\s+(\d{2,3}\.\d{2}\.\d{2})\s+(.*?)\s+(연혁|사업보고|주요일반사항|기타사항)\s+(\S+)\s+(.+)$/;
+
+        allLines.forEach(line => {
+          const m = line.match(headerRe);
+          if (m) {
+            if (curr) parsed.push(curr);
+            curr = {
+              seq: parseInt(m[1], 10),
+              date: m[2],
+              time: m[3].trim(),
+              importance: m[4].trim(),
+              category: m[5].trim(),
+              title: m[6].trim(),
+              place: "",
+              male: 0,
+              female: 0,
+              total: 0,
+              amount: 0,
+              author: "PDF추출",
+              approval: "승인",
+              content: ""
+            };
+          } else if (curr) {
+            const cleaned = line.replace(/^내용\s*:?\s*/, "").trim();
+            if (cleaned && !cleaned.includes("종합일지 상세보기")) {
+              curr.content += (curr.content ? "\n" : "") + cleaned;
+            }
+          }
+        });
+        if (curr) parsed.push(curr);
+
+        rawEntries = parsed;
+        holdMap = {};
+        appliedLog = [];
+        selectedSeq = rawEntries[0] ? rawEntries[0].seq : 1;
+        currentDatasetTitle = `${file.name} (PDF 추출 ${parsed.length}건)`;
+        document.getElementById("headerDatasetInfo").textContent = `현재 로드됨: ${currentDatasetTitle}`;
+        refreshAll();
+        statusBox.innerHTML = `✅ PDF 파일(<strong>${escapeHtml(file.name)}</strong>, ${pdf.numPages}쪽)에서 총 <strong>${parsed.length}건</strong>의 일지 항목을 추출하여 검수를 완료했습니다.`;
+        showToast(`PDF (${parsed.length}건) 추출 및 분석 완료!`);
+      } catch (err) {
+        statusBox.textContent = `❌ PDF 파싱 오류: ${err.message}`;
+      }
+    }
+
+    const SIM_SAMPLES = {
+      sample1: {
+        date: "111.09.01", time: "AM 09:00-AM 10:00", importance: "주요일반사항", category: "기타회의-회의",
+        title: "아침공사", place: "사무실", male: 0, female: 0, total: 0,
+        content: "아침공사"
+      },
+      sample2: {
+        date: "111.09.01", time: "PM 14:00-PM 17:00", importance: "주요일반사항", category: "기타-기타",
+        title: "8월 회계 마감 업무", place: "사무실", male: 1, female: 0, total: 1,
+        content: "8월 회계 마감 업무"
+      },
+      sample3: {
+        date: "111.10.13", time: "PM 14:00-PM 15:00", importance: "주요일반사항", category: "토지관리-교산",
+        title: "교당 부속 토지 매매 계약", place: "사무실", male: 0, female: 0, total: 0,
+        content: "교당 부속 토지 매매 계약 체결 (가상 예시)"
+      },
+      sample4: {
+        date: "111.10.13", time: "AM 09:00-PM 23:00", importance: "주요일반사항", category: "출가교화단회-회의",
+        title: "출가단회 문화기행", place: "○○", male: 0, female: 0, total: 0,
+        content: "출가단회 문화기행 참석"
+      },
+      sample5: {
+        date: "111.10.23", time: "PM 14:40-PM 16:00", importance: "주요일반사항", category: "교도방문-방문(접견)",
+        title: "봉공회 반찬나눔 밑작업", place: "봉공회실", male: 0, female: 2, total: 2,
+        content: "봉공회 반찬나눔 밑작업"
+      },
+      sample6: {
+        date: "111.09.07", time: "AM 05:00-AM 06:00", importance: "기타사항", category: "좌선-의식",
+        title: "아침좌선", place: "소법당", male: 1, female: 0, total: 1,
+        content: "○○지구 출가단회 참석"
+      }
+    };
+
+    function buildLlmPromptForEntry(simEntry) {
+      return `당신은 원불교 『원기 111년 교정지도 지침서』(38~41p, 79~86p) 종합일지 분류 검수 도우미입니다.
+아래 일지의 제목·내용·장소 문맥을 분석하여:
+1) [수정 전: 중요도 - 대분류 - 소분류] → [수정 후: 중요도 - 대분류 - 소분류] 형태로 변경값을 명확하게 짚어주세요.
+2) 내용 오류가 있다면 어떻게 수정해야 하는지 짧게 여러 줄로 알려주세요.
+3) 제안 근거를 간결하게 덧붙여 주세요.
+
+- 일자/시간: ${simEntry.date} / ${simEntry.time}
+- 현재 분류: ${formatImpMainSub(simEntry.importance, simEntry.category)}
+- 제목: ${simEntry.title} (장소: ${simEntry.place})
+- 내용: ${simEntry.content}`;
+    }
+
+    function runSimulator() {
+      const simEntry = {
+        seq: 999,
+        date: document.getElementById("simDate").value.trim(),
+        time: document.getElementById("simTime").value.trim(),
+        importance: document.getElementById("simImportance").value,
+        category: document.getElementById("simCategory").value.trim(),
+        title: document.getElementById("simTitle").value.trim(),
+        place: document.getElementById("simPlace").value.trim(),
+        male: parseInt(document.getElementById("simMale").value || "0", 10),
+        female: parseInt(document.getElementById("simFemale").value || "0", 10),
+        total: parseInt(document.getElementById("simTotal").value || "0", 10),
+        amount: 0,
+        author: "테스트",
+        approval: "승인",
+        content: document.getElementById("simContent").value.trim()
+      };
+
+      const [res] = analyzeAllEntries([simEntry]);
+      const promptText = buildLlmPromptForEntry(simEntry);
+      const container = document.getElementById("simResultContainer");
+
+      container.innerHTML = `
+        <div class="border-b border-slate-200 pb-3">
+          <span class="text-xs font-bold text-indigo-600 uppercase">Proposal</span>
+          <h3 class="text-base font-bold text-slate-900">단건 검수 결과 (수정 전 → 수정 후)</h3>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="p-3.5 rounded-xl bg-rose-50/70 border border-rose-200">
+            <div class="text-xs text-rose-600 font-bold">수정 전 (중요도 - 대분류 - 소분류)</div>
+            <div class="text-sm font-bold text-rose-900 mt-1">${escapeHtml(res.curFormattedCat)}</div>
+          </div>
+          <div class="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200">
+            <div class="text-xs text-indigo-600 font-bold">수정 후 (제안 분류)</div>
+            <div class="text-sm font-bold text-indigo-900 mt-1">${escapeHtml(res.recFormattedCat)}</div>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="text-xs font-bold text-slate-800">📌 줄별 변경 제안</div>
+          ${res.changes.length === 0
+            ? `<div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium">✔ 현재 설정된 분류(${escapeHtml(res.curFormattedCat)}) 및 내용이 적정합니다.</div>`
+            : res.changes.map(c => `
+                <div class="p-3 rounded-xl bg-white border border-slate-200 text-xs space-y-1.5 shadow-sm">
+                  <div class="font-bold text-slate-800">[${c.typeLabel}]</div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <div class="p-2 rounded bg-rose-50/60 text-rose-800 whitespace-pre-line font-medium">${escapeHtml(c.beforeText)}</div>
+                    <div class="p-2 rounded bg-indigo-50/60 text-indigo-900 whitespace-pre-line font-bold">${escapeHtml(c.afterText)}</div>
+                  </div>
+                  ${c.reason ? `<div class="text-[11px] text-slate-500 mt-1">💡 <strong>제안 근거:</strong> ${escapeHtml(c.reason)}</div>` : ''}
+                </div>
+              `).join("")}
+        </div>
+
+        <div id="geminiLiveOutputBox" class="hidden p-3.5 rounded-xl bg-slate-900 text-slate-100 text-xs leading-relaxed space-y-1"></div>
+
+        <div class="space-y-1.5 pt-2 border-t border-slate-100">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-700">📋 외부 AI 문맥 분석용 프롬프트</span>
+            <button id="btnCopyPrompt" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-semibold transition">프롬프트 복사</button>
+          </div>
+          <textarea id="simPromptTextarea" readonly rows="4" class="w-full p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-[11px] text-slate-600 font-mono">${escapeHtml(promptText)}</textarea>
+        </div>
+      `;
+
+      document.getElementById("btnCopyPrompt").addEventListener("click", () => {
+        const ta = document.getElementById("simPromptTextarea");
+        ta.select();
+        document.execCommand("copy");
+        showToast("프롬프트가 복사되었습니다.");
+      });
+    }
+
+    
+    function floatOrZero(v) {
+      const n = parseFloat(v);
+      return isNaN(n) ? 0 : n;
+    }
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function switchTab(tabId) {
+      ["dashboard", "upload", "simulator", "guide"].forEach(id => {
+        const panel = document.getElementById(`tabPanel-${id}`);
+        const btn = document.getElementById(`tabBtn-${id}`);
+        if (id === tabId) {
+          panel.classList.remove("hidden");
+          btn.className = "tab-btn px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition whitespace-nowrap bg-amber-500 text-slate-950 shadow";
+        } else {
+          panel.classList.add("hidden");
+          btn.className = "tab-btn px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition whitespace-nowrap text-slate-300 hover:text-white hover:bg-slate-700/60";
+        }
+      });
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
+      });
+
+      document.querySelectorAll(".kpi-card").forEach(card => {
+        card.addEventListener("click", () => {
+          const f = card.getAttribute("data-QuickFilter");
+          document.getElementById("filterIssueType").value = f;
+          renderTable();
+        });
+      });
+
+      document.getElementById("searchInput").addEventListener("input", renderTable);
+      document.getElementById("filterIssueType").addEventListener("change", renderTable);
+      document.getElementById("filterAuthor").addEventListener("change", renderTable);
+
+      document.getElementById("groupHoldSelect").addEventListener("change", renderGroupHold);
+      document.getElementById("btnGroupHold").addEventListener("click", () => {
+        const sel = document.getElementById("groupHoldSelect");
+        const g = getHoldGroups().get(sel.value);
+        if (!g) return;
+        const hold = g.ids.some(id => !holdMap[id]);
+        g.ids.forEach(id => { holdMap[id] = hold; });
+        renderKPIsAndCharts();
+        renderTable();
+        renderDetailPanel(selectedSeq);
+        showToast(hold ? `${g.label} ${g.ids.length}건을 [보류] 처리했습니다.` : `${g.label} ${g.ids.length}건의 보류를 해제했습니다.`);
+      });
+
+      // Toggle all items between hold and active
+      document.getElementById("btnToggleSelectAll").addEventListener("click", () => {
+        let hasAnyUnheld = false;
+        analyzedEntries.forEach(e => {
+          e.changes.forEach(c => {
+            if (!holdMap[c.id]) hasAnyUnheld = true;
+          });
+        });
+
+        analyzedEntries.forEach(e => {
+          e.changes.forEach(c => {
+            holdMap[c.id] = hasAnyUnheld; // if any unheld, hold all; else unhold all
+          });
+        });
+
+        renderKPIsAndCharts();
+        renderTable();
+        renderDetailPanel(selectedSeq);
+        showToast(hasAnyUnheld ? "모든 수정 제안이 [보류] 처리되었습니다." : "모든 수정 제안이 [반영 대상]으로 선택되었습니다.");
+      });
+
+      // Apply only active (non-held) items
+      document.getElementById("btnApplyAllSuggestions").addEventListener("click", () => {
+        let appliedCount = 0;
+        rawEntries.forEach((r, i) => {
+          const a = analyzedEntries[i];
+          if (a && a.hasCatChange) {
+            const catChange = a.changes.find(c => c.kind === "CAT_ISSUE");
+            if (catChange && !holdMap[catChange.id]) {
+              recordApplied(a, catChange);
+              r.importance = a.recImp;
+              r.category = a.recCat;
+              appliedCount++;
+            }
+          }
+        });
+        refreshAll();
+        showToast(`${appliedCount}건을 적용 완료로 표시했습니다. 원티스에서는 직접 수정해야 하며, 수정제안표에 [적용 완료]로 남습니다.`);
+      });
+
+      document.getElementById("btnExportExcel").addEventListener("click", exportInspectedExcel);
+
+      document.getElementById("btnResetOriginal").addEventListener("click", () => {
+        rawEntries = JSON.parse(JSON.stringify(INITIAL_ENTRIES));
+        holdMap = {};
+        appliedLog = [];
+        selectedSeq = 1;
+        currentDatasetTitle = "예시 일지(가상 데이터)";
+        document.getElementById("headerDatasetInfo").textContent = `현재 로드됨: ${currentDatasetTitle} · 총 ${rawEntries.length}건`;
+        refreshAll();
+        showToast("예시 일지(가상) 상태로 복원되었습니다.");
+      });
+
+      const dropZone = document.getElementById("fileDropZone");
+      const fileInput = document.getElementById("fileInputElem");
+      dropZone.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", (e) => {
+        if (e.target.files && e.target.files[0]) handleUploadedFile(e.target.files[0]);
+        e.target.value = "";
+      });
+      document.getElementById("btnUploadQuick").addEventListener("click", () => fileInput.click());
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("ring-2", "ring-indigo-500");
+      });
+      dropZone.addEventListener("dragleave", () => {
+        dropZone.classList.remove("ring-2", "ring-indigo-500");
+      });
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("ring-2", "ring-indigo-500");
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleUploadedFile(e.dataTransfer.files[0]);
+        }
+      });
+
+      document.getElementById("btnReloadDefaultFile").addEventListener("click", () => {
+        rawEntries = JSON.parse(JSON.stringify(INITIAL_ENTRIES));
+        holdMap = {};
+        appliedLog = [];
+        selectedSeq = 1;
+        refreshAll();
+        switchTab("dashboard");
+        showToast("예시 일지(가상)를 다시 불러왔습니다.");
+      });
+
+      document.getElementById("simSampleSelector").addEventListener("change", (e) => {
+        const s = SIM_SAMPLES[e.target.value];
+        if (!s) return;
+        document.getElementById("simDate").value = s.date;
+        document.getElementById("simTime").value = s.time;
+        document.getElementById("simImportance").value = s.importance;
+        document.getElementById("simCategory").value = s.category;
+        document.getElementById("simTitle").value = s.title;
+        document.getElementById("simPlace").value = s.place;
+        document.getElementById("simMale").value = s.male;
+        document.getElementById("simFemale").value = s.female;
+        document.getElementById("simTotal").value = s.total;
+        document.getElementById("simContent").value = s.content;
+        runSimulator();
+      });
+
+      document.getElementById("btnRunSim").addEventListener("click", runSimulator);
+      
+      document.getElementById("btnAddSimToList").addEventListener("click", () => {
+        const nextSeq = rawEntries.length > 0 ? Math.max(...rawEntries.map(r => r.seq)) + 1 : 1;
+        rawEntries.unshift({
+          seq: nextSeq,
+          date: document.getElementById("simDate").value.trim(),
+          time: document.getElementById("simTime").value.trim(),
+          importance: document.getElementById("simImportance").value,
+          category: document.getElementById("simCategory").value.trim(),
+          title: document.getElementById("simTitle").value.trim(),
+          place: document.getElementById("simPlace").value.trim(),
+          male: parseInt(document.getElementById("simMale").value || "0", 10),
+          female: parseInt(document.getElementById("simFemale").value || "0", 10),
+          total: parseInt(document.getElementById("simTotal").value || "0", 10),
+          amount: 0,
+          author: "직접입력",
+          approval: "미승인",
+          content: document.getElementById("simContent").value.trim()
+        });
+        selectedSeq = nextSeq;
+        refreshAll();
+        switchTab("dashboard");
+        showToast(`새 일지(#${nextSeq})가 점검 목록에 추가되었습니다.`);
+      });
+
+      refreshAll();
+      runSimulator();
+    });
+  </script>
+</div>
+</body>
+</html>
