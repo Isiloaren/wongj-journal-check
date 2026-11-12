@@ -49,7 +49,7 @@
             <h1 class="text-base sm:text-lg font-bold tracking-tight">WonTIS 종합일지 분류·중요도 검수 시스템</h1>
             <span class="hidden md:inline-block text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 font-medium">원티스 화면 순서: 중요도 - 대분류 - 소분류</span>
           </div>
-          <p class="text-xs text-slate-400" id="headerDatasetInfo">현재 로드됨: 예시 일지(가상 데이터) · 총 14건 — 원티스에서 받은 XLS를 올리면 교체됨</p>
+          <p class="text-xs text-slate-400" id="headerDatasetInfo">아직 올린 일지가 없습니다 — 원티스에서 받은 종합일지 XLS를 올리세요. 올린 내용은 페이지를 닫으면 지워집니다.</p>
         </div>
       </div>
 
@@ -106,7 +106,7 @@
             <span id="btnApplyAllLabel">✨ 선택 항목만 일괄 반영</span>
           </button>
           <button id="btnResetOriginal" class="hidden px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-medium transition">
-            원본 복원
+            올린 내용 지우기
           </button>
         </div>
         <div id="uploadStatusBox" class="hidden w-full p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs sm:text-sm"></div>
@@ -257,9 +257,6 @@
               원티스에서 내려받은 <strong>엑셀 파일(.xls, .xlsx, .csv)</strong> 또는 <strong>PDF 출력물(.pdf)</strong>을 업로드하면 자동으로 파싱하여 수정 제안표를 생성합니다.
             </p>
           </div>
-          <button id="btnReloadDefaultFile" class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs sm:text-sm font-semibold shadow-sm transition">
-            📂 예시 일지(가상) 다시 불러오기
-          </button>
         </div>
 
         <div id="fileDropZone" class="border-2 border-dashed border-indigo-300 hover:border-indigo-500 bg-indigo-50/40 hover:bg-indigo-50/80 transition rounded-2xl p-8 text-center cursor-pointer">
@@ -432,12 +429,12 @@
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
 
-    const INITIAL_ENTRIES = [{"seq": 1, "date": "111.09.01", "time": "AM 09:00-AM 10:00", "importance": "주요일반사항", "category": "기타회의-회의", "title": "아침공사", "place": "사무실", "male": 0, "female": 0, "total": 0, "amount": 0, "author": "담당교무", "approval": "승인", "content": "아침공사"}, {"seq": 2, "date": "111.09.01", "time": "PM 14:00-PM 17:00", "importance": "주요일반사항", "category": "기타-기타", "title": "8월 회계 마감 업무", "place": "사무실", "male": 1, "female": 0, "total": 1, "amount": 0, "author": "담당교무", "approval": "승인", "content": "8월 회계 마감 업무"}, {"seq": 3, "date": "111.09.03", "time": "AM 05:00-AM 06:00", "importance": "기타사항", "category": "좌선-의식", "title": "아침좌선", "place": "소법당", "male": 1, "female": 0, "total": 1, "amount": 0, "author": "담당교무", "approval": "승인", "content": "아침좌선"}, {"seq": 4, "date": "111.09.07", "time": "AM 10:30-AM 11:30", "importance": "주요일반사항", "category": "정례법회-법회-교도활동", "title": "일요 정례법회", "place": "대각전", "male": 5, "female": 12, "total": 17, "amount": 0, "author": "담당교무", "approval": "승인", "content": "일요 정례법회\n설교: 담당교무"}, {"seq": 5, "date": "111.09.07", "time": "AM 05:00-AM 06:00", "importance": "기타사항", "category": "좌선-의식", "title": "아침좌선", "place": "소법당", "male": 1, "female": 0, "total": 1, "amount": 0, "author": "담당교무", "approval": "승인", "content": "○○지구 출가단회 참석"}, {"seq": 6, "date": "111.09.14", "time": "PM 14:00-PM 16:00", "importance": "주요일반사항", "category": "교도방문-방문(접견)", "title": "봉공회 반찬나눔 밑작업", "place": "봉공회실", "male": 0, "female": 2, "total": 2, "amount": 0, "author": "담당교무", "approval": "승인", "content": "봉공회 반찬나눔 밑작업"}, {"seq": 7, "date": "111.09.20", "time": "AM 10:00-PM 15:00", "importance": "주요일반사항", "category": "행사참석-참석", "title": "○○교당 봉불식 참석", "place": "○○교당", "male": 1, "female": 0, "total": 1, "amount": 0, "author": "담당교무", "approval": "승인", "content": "○○교당 봉불식 참석"}, {"seq": 8, "date": "111.10.02", "time": "PM 14:00-PM 15:00", "importance": "주요일반사항", "category": "토지관리-교산", "title": "교당 부속 토지 매매 계약", "place": "사무실", "male": 0, "female": 0, "total": 0, "amount": 0, "author": "담당교무", "approval": "승인", "content": "교당 부속 토지 매매 계약 체결 (가상 예시)"}, {"seq": 9, "date": "111.10.05", "time": "PM 19:30-PM 21:00", "importance": "주요일반사항", "category": "기타-기타", "title": "청년회 정기모임", "place": "청년방", "male": 3, "female": 4, "total": 7, "amount": 0, "author": "담당교무", "approval": "승인", "content": "청년회 정기모임"}, {"seq": 10, "date": "111.10.13", "time": "AM 09:00-PM 23:00", "importance": "주요일반사항", "category": "출가교화단회-회의", "title": "출가단회 문화기행", "place": "○○", "male": 0, "female": 0, "total": 0, "amount": 0, "author": "담당교무", "approval": "승인", "content": "출가단회 문화기행 참석"}, {"seq": 11, "date": "111.10.18", "time": "PM 14:00-PM 16:00", "importance": "주요일반사항", "category": "건물관리-교산", "title": "교당 지붕 방수 공사 시작", "place": "교당", "male": 0, "female": 0, "total": 0, "amount": 0, "author": "담당교무", "approval": "미승인", "content": "교당 지붕 방수 공사 시작"}, {"seq": 12, "date": "111.10.25", "time": "AM 10:00-PM 16:00", "importance": "사업보고", "category": "훈련-훈련", "title": "교당 교도 정기훈련", "place": "대각전", "male": 6, "female": 15, "total": 21, "amount": 0, "author": "담당교무", "approval": "승인", "content": "교당 교도 정기훈련"}, {"seq": 13, "date": "111.11.01", "time": "PM 14:00-PM 15:00", "importance": "주요일반사항", "category": "기타-기타", "title": "교구 회의 참석", "place": "교구청", "male": 1, "female": 0, "total": 1, "amount": 0, "author": "담당교무", "approval": "승인", "content": "교구 교무회의 참석"}, {"seq": 14, "date": "111.11.04", "time": "AM 10:00-AM 12:00", "importance": "주요일반사항", "category": "기타-기타", "title": "교당 업무", "place": "사무실", "male": 1, "female": 0, "total": 1, "amount": 0, "author": "담당교무", "approval": "승인", "content": "교당 업무"}];
+    const INITIAL_ENTRIES = []; // 예시 일지 데이터는 넣지 않는다(2026-11-12). 올린 파일만 화면에 보인다.
 
     let rawEntries = JSON.parse(JSON.stringify(INITIAL_ENTRIES));
     let analyzedEntries = [];
     let selectedSeq = 1;
-    let currentDatasetTitle = "예시 일지(가상 데이터)";
+    let currentDatasetTitle = "";
     let chartCatInstance = null;
     let chartIssueInstance = null;
 
@@ -1731,6 +1728,14 @@
       });
     }
 
+    // 올린 일지는 이 페이지의 메모리에만 있다(브라우저 저장소에 쓰지 않음).
+    // 페이지를 닫거나 다른 곳으로 가면 지우고, '뒤로 가기'로 돌아오면 빈 화면으로 새로 연다.
+    window.addEventListener("pagehide", () => {
+      rawEntries = []; analyzedEntries = []; holdMap = {}; appliedLog = []; currentDatasetTitle = "";
+      document.querySelectorAll('input[type="file"]').forEach(i => { i.value = ""; });
+    });
+    window.addEventListener("pageshow", (e) => { if (e.persisted) location.reload(); });
+
     window.addEventListener("DOMContentLoaded", () => {
       document.querySelectorAll(".tab-btn").forEach(btn => {
         btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
@@ -1808,10 +1813,10 @@
         holdMap = {};
         appliedLog = [];
         selectedSeq = 1;
-        currentDatasetTitle = "예시 일지(가상 데이터)";
-        document.getElementById("headerDatasetInfo").textContent = `현재 로드됨: ${currentDatasetTitle} · 총 ${rawEntries.length}건`;
+        currentDatasetTitle = "";
+        document.getElementById("headerDatasetInfo").textContent = "올린 일지를 지웠습니다 — 원티스에서 받은 종합일지 XLS를 다시 올리세요.";
         refreshAll();
-        showToast("예시 일지(가상) 상태로 복원되었습니다.");
+        showToast("올린 일지를 화면에서 지웠습니다.");
       });
 
       const dropZone = document.getElementById("fileDropZone");
@@ -1837,15 +1842,6 @@
         }
       });
 
-      document.getElementById("btnReloadDefaultFile").addEventListener("click", () => {
-        rawEntries = JSON.parse(JSON.stringify(INITIAL_ENTRIES));
-        holdMap = {};
-        appliedLog = [];
-        selectedSeq = 1;
-        refreshAll();
-        switchTab("dashboard");
-        showToast("예시 일지(가상)를 다시 불러왔습니다.");
-      });
 
       document.getElementById("simSampleSelector").addEventListener("change", (e) => {
         const s = SIM_SAMPLES[e.target.value];
